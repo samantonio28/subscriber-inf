@@ -1,0 +1,21 @@
+name: Up Subscriber-Inf Service
+run-name: ${{ github.actor }} is deploying Subscriber-Inf Service
+on:
+  push:
+    branches: [ main ]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run tests
+      run: |
+        make test   
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run linter
+      uses: golangci/golangci-lint-action@v8
+      with:
+        version: v2.1

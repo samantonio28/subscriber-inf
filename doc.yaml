@@ -1,0 +1,307 @@
+openapi: 3.0.4
+
+info:
+  title: Subscriber Inf - OpenAPI 3.0
+  version: 1.0.0
+
+tags:
+- name: subscriptions
+  description: subscriptions actions
+
+paths:
+  /subcription:
+    post:
+      tags:
+      - subscriptions
+      summary: Add new subscription
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Subscription'
+        required: true
+      responses:
+        '201':
+          description: Subscription added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '300':
+          description: Already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    get:
+      tags:
+      - subscriptions
+      summary: Get subscription
+      description: Get subscription by id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sub_id:
+                  type: integer
+                  format: int64
+                  example: 15
+        required: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '403':
+          description: No access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    put:
+      tags:
+      - subscriptions
+      summary: Update subscription
+      description: Update description by id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sub_id:
+                  type: integer
+                  format: int64
+                  example: 15
+                subscription:
+                  $ref: '#/components/schemas/Subscription'
+        required: true
+      responses:
+        '200':
+          description: Successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    delete:
+      tags:
+      - subscriptions
+      summary: Delete subscription
+      description: Delete subscription by id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sub_id:
+                  type: integer
+                  format: int64
+        required: true
+      responses:
+        '204':
+          description: Succesful deletion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /subscriptions:
+    get:
+      tags:
+      - subscriptions
+      summary: Get subscriptions by user id.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                  example: "60601fee-2bf1-4721-ae6f-7636e79a0cba"
+      responses:
+        '200':
+          description: success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "OK"
+        '204':
+          description: No data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "No data"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "no memory :)"
+  /total_costs:
+    get:
+      tags:
+      - subscriptions
+      summary: Get total costs
+      description: Get total costs during some period by user id and service name
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                start_date:
+                  type: string
+                  format: date
+                end_date:
+                  type: string
+                  format: date
+                filter:
+                  type: object
+                  properties:
+                    user_id:
+                      type: string
+                      format: uuid
+                    service_name:
+                      type: string
+                      example: "Yandex Plus"
+              required:
+              - start_date
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_sum:
+                    type: integer
+                    format: int64
+                    example: 7320
+                  sub_ids:
+                    description: Ids of all fitted subscriptions
+                    type: array
+                    items:
+                      type: integer
+                      format: int64
+        '204':
+          description: No data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "change period or user_id or service_name"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+components:
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        type:
+          type: string
+        message:
+          type: string
+    Subscription:
+      type: object
+      properties:
+        service_name:
+          type: string
+          example: "Yandex Plus"
+        price:
+          type: integer
+          format: int64
+          example: 399
+        user_id:
+          type: string
+          format: uuid
+        start_date:
+          type: string
+          format: date
+          example: "07-2025"
+        end_date:
+          type: string
+          format: date
+          example: "08-2025"
+      required:
+      - service_name
+      - price
+      - user_id
+      - start_date
