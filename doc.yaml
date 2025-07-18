@@ -9,7 +9,7 @@ tags:
   description: subscriptions actions
 
 paths:
-  /subcription:
+  /subcriptions:
     post:
       tags:
       - subscriptions
@@ -27,14 +27,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
-        '300':
-          description: Already exists
+        '400':
+          description: Invalid input
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
-        '400':
-          description: Invalid input
+        '409':
+          description: Already exists
           content:
             application/json:
               schema:
@@ -48,8 +48,53 @@ paths:
     get:
       tags:
       - subscriptions
+      summary: Get subscriptions by user id.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "OK"
+        '404':
+          description: No data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "No data"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "no memory :)"
+  /subscriptions/{id}:
+    get:
+      tags:
+      - subscriptions
       summary: Get subscription
-      description: Get subscription by id
+      description: Get subscription by sub_id
       requestBody:
         content:
           application/json:
@@ -90,7 +135,7 @@ paths:
       tags:
       - subscriptions
       summary: Update subscription
-      description: Update description by id
+      description: Update description by sub_id
       requestBody:
         content:
           application/json:
@@ -127,7 +172,7 @@ paths:
       tags:
       - subscriptions
       summary: Delete subscription
-      description: Delete subscription by id
+      description: Delete subscription by sub_id
       requestBody:
         content:
           application/json:
@@ -157,52 +202,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
-  /subscriptions:
-    get:
-      tags:
-      - subscriptions
-      summary: Get subscriptions by user id.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                user_id:
-                  type: string
-                  format: uuid
-                  example: "60601fee-2bf1-4721-ae6f-7636e79a0cba"
-      responses:
-        '200':
-          description: success
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "OK"
-        '204':
-          description: No data
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "No data"
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "no memory :)"
   /total_costs:
     get:
       tags:
