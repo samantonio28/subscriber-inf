@@ -22,5 +22,5 @@ func (u *GetSubUC) SubById(ctx context.Context, subId int) (SubscriptionDTO, err
 	if err != nil {
 		return SubscriptionDTO{}, err
 	}
-	return SubToDTO(*sub), nil
+	return SubToDTO(sub), nil
 }

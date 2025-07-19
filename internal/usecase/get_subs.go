@@ -25,7 +25,7 @@ func (u *GetSubsUC) SubsByUserId(ctx context.Context, userId uuid.UUID) ([]Subsc
 	}
 	dto := make([]SubscriptionDTO, 0, len(subs))
 	for _, s := range subs {
-		dto = append(dto, SubToDTO(*s))
+		dto = append(dto, SubToDTO(s))
 	}
 	return dto, nil
 }

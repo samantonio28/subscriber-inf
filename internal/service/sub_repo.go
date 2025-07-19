@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 )
@@ -30,9 +32,12 @@ SELECT user_id FROM users_subs WHERE sub_id = $1;
 	GetServiceNameById = `
 SELECT service_name FROM services WHERE service_id = $1;	
 `
+	GetSubByUserId = `
+SELECT sub_id FROM users_subs WHERE user_id = $1;	
+`
 )
 
-func (s *SubRepo) Sub(ctx context.Context, subId domain.SubID) (*domain.Subscription, error) {
+func (s *SubRepo) Sub(ctx context.Context, subId domain.SubID) (domain.Subscription, error) {
 	var sub domain.Subscription
 	var serviceId int
 	if err := s.p.QueryRow(ctx, GetSubById, int(subId)).Scan(
@@ -42,20 +47,42 @@ func (s *SubRepo) Sub(ctx context.Context, subId domain.SubID) (*domain.Subscrip
 		&sub.StartDate,
 		&sub.EndDate,
 	); err != nil {
-		return nil, err
+		return domain.Subscription{}, err
 	}
 	if err := s.p.QueryRow(ctx, GetUserBySubId, int(subId)).Scan(&sub.UserID); err != nil {
-		return nil, err
+		return domain.Subscription{}, err
 	}
 	if err := s.p.QueryRow(ctx, GetServiceNameById, serviceId).Scan(&sub.ServiceName); err != nil {
-		return nil, err
+		return domain.Subscription{}, err
 	}
-	return &sub, nil
+	return sub, nil
 }
 
-// func (s *SubRepo) UserSubs(ctx context.Context, userId uuid.UUID) ([]*domain.Subscription, error) {
+func (s *SubRepo) UserSubs(ctx context.Context, userId uuid.UUID) ([]domain.Subscription, error) {
+	res := make([]domain.Subscription, 0, 1)
+	rows, err := s.p.Query(ctx, GetSubByUserId, userId)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+	defer rows.Close()
 
-// }
+	for rows.Next() {
+		var subId int
+		if err := rows.Scan(&subId); err != nil {
+			return nil, err
+		}
+
+		sub, err := s.Sub(ctx, domain.SubID(subId))
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, sub)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+	return res, nil
+}
 
 // func (s *SubRepo) StoreSub(ctx context.Context, sub domain.Subscription) (domain.SubID, error) {
 
