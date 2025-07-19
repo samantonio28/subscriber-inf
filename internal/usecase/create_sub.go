@@ -28,5 +28,5 @@ func (u *CreateSubUC) NewSub(ctx context.Context, input SubscriptionDTO) (int, e
 	if err != nil {
 		return 0, err
 	}
-	return subId, nil
+	return int(subId), nil
 }
