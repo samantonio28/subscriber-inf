@@ -2,6 +2,8 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+CREATE IF NOT EXISTS DATABASE dev;
+
 CREATE TABLE services (
     service_id INTEGER PRIMARY KEY,
     service_name VARCHAR(50) NOT NULL
