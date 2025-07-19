@@ -7,19 +7,18 @@ import (
 	"github.com/google/uuid"
 )
 
-type UserID uuid.UUID
 type SubID int
 
 type Subscription struct {
 	SubId       SubID
-	UserID      UserID
+	UserID      uuid.UUID
 	ServiceName string
 	Price       int
 	StartDate   time.Time
 	EndDate     time.Time
 }
 
-func NewSubscription(subId SubID, userID UserID, serviceName string, price int, startDate time.Time, endDate time.Time) (*Subscription, error) {
+func NewSubscription(subId SubID, userID uuid.UUID, serviceName string, price int, startDate time.Time, endDate time.Time) (*Subscription, error) {
 	if subId < 0 {
 		return nil, errors.New("subId must be greater than 0")
 	}
@@ -48,11 +47,11 @@ func NewSubscription(subId SubID, userID UserID, serviceName string, price int, 
 type SubsFilter struct {
 	StartDate   time.Time
 	EndDate     time.Time
-	UserID      UserID
+	UserID      uuid.UUID
 	ServiceName string
 }
 
-func NewSubsFilter(startDate time.Time, endDate time.Time, userID UserID, serviceName string) (*SubsFilter, error) {
+func NewSubsFilter(startDate time.Time, endDate time.Time, userID uuid.UUID, serviceName string) (*SubsFilter, error) {
 	if startDate.IsZero() {
 		return nil, errors.New("startDate must not be zero")
 	}
