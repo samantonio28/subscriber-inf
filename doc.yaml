@@ -229,8 +229,11 @@ paths:
                     service_name:
                       type: string
                       example: "Yandex Plus"
+                  required:
+                  - user_id
               required:
               - start_date
+              - filter
       responses:
         '200':
           description: Successful operation
