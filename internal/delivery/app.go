@@ -26,4 +26,6 @@ func App() {
 	defer pool.Close()
 
 	log.Println("Successfully connected to PostgreSQL!")
+
+	
 }
