@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
+	"github.com/samantonio28/subscriber-inf/pkg/utils"
 )
 
 type SubRepo struct {
@@ -20,37 +21,6 @@ func NewSubRepo(p *pgxpool.Pool) (*SubRepo, error) {
 		return nil, domain.ErrInvalidSubRepo
 	}
 	return &SubRepo{p: p}, nil
-}
-
-func MonthToInt(m time.Month) int {
-	switch m {
-	case time.January:
-		return 1
-	case time.February:
-		return 2
-	case time.March:
-		return 3
-	case time.April:
-		return 4
-	case time.May:
-		return 5
-	case time.June:
-		return 6
-	case time.July:
-		return 7
-	case time.August:
-		return 8
-	case time.September:
-		return 9
-	case time.October:
-		return 10
-	case time.November:
-		return 11
-	case time.December:
-		return 12
-	default:
-		return -1
-	}
 }
 
 const (
@@ -280,7 +250,7 @@ func (s *SubRepo) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) 
 			en = filter.EndDate
 		}
 
-		months := MonthToInt(en.Month()) - MonthToInt(st.Month()) + 12*(en.Year()-st.Year())
+		months := utils.MonthToInt(en.Month()) - utils.MonthToInt(st.Month()) + 12*(en.Year()-st.Year())
 		if months < 0 {
 			return 0, nil, fmt.Errorf("invalid dates")
 		}
