@@ -212,3 +212,45 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 	}
 	utils.MakeResponse(w, http.StatusOK, hSub)
 }
+
+func (h *SubsHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserId string `json:"user_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "invalid json",
+		})
+		return
+	}
+	userId, err := uuid.Parse(req.UserId)
+	if err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "invalid user id: " + err.Error(),
+		})
+		return
+	}
+	subs, err := h.GetSubsUC.SubsByUserId(context.Background(), userId)
+	if err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "bad getting subs: " + err.Error(),
+		})
+		return
+	}
+	hSubs := make([]HandlingSub, 0, len(subs))
+	for _, s := range subs {
+		stDate := utils.DateString(s.StartDate)
+		enDate := utils.DateString(s.EndDate)
+
+		var hSub HandlingSub = HandlingSub{
+			ServiceName: s.ServiceName,
+			Price:       s.Price,
+			UserId:      s.UserId.String(),
+			StartDate:   stDate,
+			EndDate:     enDate,
+		}
+		hSubs = append(hSubs, hSub)
+	}
+	utils.MakeResponse(w, http.StatusOK, hSubs)
+}
