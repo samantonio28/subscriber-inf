@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	"github.com/samantonio28/subscriber-inf/internal/usecase"
 	"github.com/samantonio28/subscriber-inf/pkg/utils"
@@ -137,5 +139,39 @@ func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request)
 	}
 	utils.MakeResponse(w, http.StatusCreated, map[string]string{
 		"message": fmt.Sprintf("new sub_id: %d", subId),
+	})
+}
+
+func (h *SubsHandler) DeleteSubscription(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	subIdSt, ok := vars["id"]
+	if !ok {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "has no valid id in query",
+		})
+		return
+	}
+	subId, err := strconv.Atoi(subIdSt)
+	if err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "has no valid id in query:" + err.Error(),
+		})
+		return
+	}
+	err = h.DeleteSubUC.DeleteSub(context.Background(), subId)
+	if err != nil {
+		if err.Error() == "no subs deleted" {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"message": "bad deleting sub:" + err.Error(),
+			})
+			return
+		}
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "bad deleting sub:" + err.Error(),
+		})
+		return
+	}
+	utils.MakeResponse(w, http.StatusNoContent, map[string]string{
+		"message": "nice",
 	})
 }

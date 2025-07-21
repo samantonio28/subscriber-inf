@@ -232,8 +232,15 @@ func (s *SubRepo) UpdateSub(ctx context.Context, sub domain.Subscription) error 
 }
 
 func (s *SubRepo) DeleteSub(ctx context.Context, subId domain.SubID) error {
-	_, err := s.p.Exec(ctx, DeleteSub, int(subId))
-	return err
+	res, err := s.p.Exec(ctx, DeleteSub, int(subId))
+	if err != nil {
+		return err
+	}
+	rowsAffected := res.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("no subs deleted")
+	}
+	return nil
 }
 
 func (s *SubRepo) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) (int, []domain.SubID, error) {
