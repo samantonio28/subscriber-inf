@@ -175,3 +175,40 @@ func (h *SubsHandler) DeleteSubscription(w http.ResponseWriter, r *http.Request)
 		"message": "nice",
 	})
 }
+
+func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	subIdSt, ok := vars["id"]
+	if !ok {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "has no valid id in query",
+		})
+		return
+	}
+	subId, err := strconv.Atoi(subIdSt)
+	if err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "bad sub id: " + err.Error(),
+		})
+		return
+	}
+	sub, err := h.GetSubUC.SubById(context.Background(), subId)
+	if err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "bad getting sub: " + err.Error(),
+		})
+		return
+	}
+
+	stDate := utils.DateString(sub.StartDate)
+	enDate := utils.DateString(sub.EndDate)
+
+	var hSub HandlingSub = HandlingSub{
+		ServiceName: sub.ServiceName,
+		Price:       sub.Price,
+		UserId:      sub.UserId.String(),
+		StartDate:   stDate,
+		EndDate:     enDate,
+	}
+	utils.MakeResponse(w, http.StatusOK, hSub)
+}

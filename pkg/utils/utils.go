@@ -60,9 +60,23 @@ func ParseMonthYear(s string) (time.Time, error) {
 
 	second, err := strconv.Atoi(parts[1])
 	if err != nil {
-		return time.Time{}, fmt.Errorf("not number 1")
+		return time.Time{}, fmt.Errorf("not number 2")
 	}
 
 	t := time.Date(second, time.Month(first), 1, 0, 0, 0, 0, time.UTC)
 	return t, nil
+}
+
+func DateString(t time.Time) string {
+	var s string
+	if t.IsZero() {
+		return ""
+	}
+	if m := MonthToInt(t.Month()); m < 10 {
+		s = "0" + strconv.Itoa(m)
+	} else {
+		s = strconv.Itoa(m)
+	}
+	s += "-" + strconv.Itoa(t.Year())
+	return s
 }

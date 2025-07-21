@@ -48,7 +48,7 @@ func App() {
 	r.HandleFunc("/subscriptions", handler.CreateSubscription).Methods("POST")
 	// r.HandleFunc("/subscriptions", ).Methods("")
 	r.HandleFunc("/subscriptions/{id}", handler.DeleteSubscription).Methods("DELETE")
-	// r.HandleFunc("/subscriptions/{id}", ).Methods("")
+	r.HandleFunc("/subscriptions/{id}", handler.GetSubscription).Methods("GET")
 	// r.HandleFunc("/subscriptions/{id}", ).Methods("")
 	// r.HandleFunc("/total_costs", ).Methods("")
 

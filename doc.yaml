@@ -95,24 +95,13 @@ paths:
       - subscriptions
       summary: Get subscription
       description: Get subscription by sub_id
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                sub_id:
-                  type: integer
-                  format: int64
-                  example: 15
-        required: true
       responses:
         '200':
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponse"
+                $ref: "#/components/schemas/Subscription"
         '403':
           description: No access
           content:

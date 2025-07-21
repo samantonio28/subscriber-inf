@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	"github.com/samantonio28/subscriber-inf/pkg/utils"
@@ -85,15 +86,19 @@ func (s *SubRepo) Sub(ctx context.Context, subId domain.SubID) (domain.Subscript
 	defer tx.Rollback(ctx)
 
 	var sub domain.Subscription
+	var enDate pgtype.Date
 	var serviceId int
 	if err := tx.QueryRow(ctx, GetSubById, int(subId)).Scan(
 		&sub.SubId,
 		&serviceId,
 		&sub.Price,
 		&sub.StartDate,
-		&sub.EndDate,
+		&enDate,
 	); err != nil {
 		return domain.Subscription{}, err
+	}
+	if enDate.Valid {
+		sub.EndDate = enDate.Time
 	}
 	if err := tx.QueryRow(ctx, GetUserBySubId, int(subId)).Scan(&sub.UserID); err != nil {
 		return domain.Subscription{}, err
