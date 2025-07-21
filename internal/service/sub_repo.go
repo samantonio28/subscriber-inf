@@ -39,16 +39,10 @@ SELECT service_name FROM services WHERE service_id = $1;
 SELECT sub_id FROM users_subs WHERE user_id = $1;	
 `
 	PutServiceName = `
-WITH inserted AS (
-	INSERT INTO services (service_name) 
-	VALUES ($1)
-	ON CONFLICT (service_name) DO NOTHING
-	RETURNING service_id
-)
-SELECT service_id FROM inserted
-UNION ALL
-SELECT service_id FROM services WHERE service_name = $1
-LIMIT 1;
+INSERT INTO services (service_name) 
+VALUES ($1)
+ON CONFLICT (service_name) DO UPDATE SET service_name = EXCLUDED.service_name
+RETURNING service_id;
 `
 	PutSub = `
 INSERT INTO subscriptions
@@ -63,6 +57,23 @@ VALUES ($1, $2);
 `
 	DeleteSub = `
 DELETE FROM subscriptions WHERE sub_id = $1;
+`
+	GetAllData = `
+SELECT 
+    us.sub_id,
+    us.user_id,
+    s.service_name,
+    sub.price,
+    sub.start_date,
+    sub.end_date
+FROM 
+    users_subs us
+LEFT JOIN 
+    subscriptions sub ON us.sub_id = sub.sub_id
+LEFT JOIN 
+    services s ON sub.service_id = s.service_id
+ORDER BY 
+    us.sub_id;	
 `
 )
 
@@ -136,7 +147,11 @@ func (s *SubRepo) StoreSub(ctx context.Context, sub domain.Subscription) (domain
 		return 0, fmt.Errorf("failed to get service_id: %w", err)
 	}
 	var subId int
-	if err := tx.QueryRow(ctx, PutSub, serviceId, sub.Price, sub.StartDate, sub.EndDate).Scan(&subId); err != nil {
+	var enDateOrNil any = sub.EndDate
+	if sub.EndDate.IsZero() {
+		enDateOrNil = nil
+	}
+	if err := tx.QueryRow(ctx, PutSub, serviceId, sub.Price, sub.StartDate, enDateOrNil).Scan(&subId); err != nil {
 		return 0, fmt.Errorf("failed to insert sub: %w", err)
 	}
 	_, err = tx.Exec(ctx, PutSubIdUserId, subId, sub.UserID)

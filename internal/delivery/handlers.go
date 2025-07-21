@@ -13,6 +13,8 @@ import (
 	"github.com/samantonio28/subscriber-inf/pkg/utils"
 )
 
+var ZeroDateString = "01-0001"
+
 type SubsHandler struct {
 	CreateSubUC  usecase.CreateSubUC
 	DeleteSubUC  usecase.DeleteSubUC
@@ -81,12 +83,16 @@ func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var uID uuid.UUID
-	uID, err = uuid.Parse(req.UserId)
-	if err != nil {
-		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
-			"message": "can't parse uuid",
-		})
-		return
+	if req.UserId != "" {
+		uID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+				"message": "can't parse uuid:" + err.Error(),
+			})
+			return
+		}
+	} else {
+		uID = uuid.Nil
 	}
 	if req.Price < 0 {
 		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
@@ -111,7 +117,7 @@ func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request)
 			return
 		}
 	} else {
-		enDate, _ = utils.ParseMonthYear("01-0001")
+		enDate, _ = utils.ParseMonthYear(ZeroDateString)
 	}
 
 	subDTO := usecase.SubscriptionDTO{

@@ -2,15 +2,16 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE IF NOT EXISTS DATABASE dev;
+-- CREATE DATABASE IF NOT EXISTS dev;
 
 CREATE TABLE services (
-    service_id INTEGER PRIMARY KEY,
-    service_name VARCHAR(50) NOT NULL
+    -- service_id INTEGER PRIMARY KEY,
+    service_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    service_name VARCHAR(50) NOT NULL UNIQUE
 );
 
 CREATE TABLE subscriptions (
-    sub_id INTEGER PRIMARY KEY,
+    sub_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     service_id INTEGER NOT NULL REFERENCES services(service_id),
     price INTEGER NOT NULL CHECK (price > 0),
     start_date DATE NOT NULL,

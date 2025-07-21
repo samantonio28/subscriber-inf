@@ -23,7 +23,9 @@ func (u *CreateSubUC) NewSub(ctx context.Context, input SubscriptionDTO) (int, e
 	if err != nil {
 		return 0, err
 	}
-	sub.UserID = uuid.New()
+	if sub.UserID == uuid.Nil {
+		sub.UserID = uuid.New()
+	}
 	subId, err := u.subR.StoreSub(ctx, sub)
 	if err != nil {
 		return 0, err
