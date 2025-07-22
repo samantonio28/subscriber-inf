@@ -49,8 +49,8 @@ func App() {
 	r.HandleFunc("/subscriptions", handler.GetSubscriptions).Methods("GET")
 	r.HandleFunc("/subscriptions/{id}", handler.DeleteSubscription).Methods("DELETE")
 	r.HandleFunc("/subscriptions/{id}", handler.GetSubscription).Methods("GET")
-	// r.HandleFunc("/subscriptions/{id}", ).Methods("")
-	// r.HandleFunc("/total_costs", ).Methods("")
+	// r.HandleFunc("/subscriptions/{id}", ).Methods("PUT")
+	r.HandleFunc("/total_costs", handler.GetTotalCosts).Methods("GET")
 
 	server := http.Server{
 		Addr:         ":8080",

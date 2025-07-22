@@ -205,10 +205,10 @@ paths:
               properties:
                 start_date:
                   type: string
-                  format: date
+                  example: "08-2024"
                 end_date:
                   type: string
-                  format: date
+                  example: "08-2025"
                 filter:
                   type: object
                   properties:

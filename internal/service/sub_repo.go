@@ -266,8 +266,6 @@ func (s *SubRepo) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) 
 	subIds := make([]domain.SubID, 0, len(allSubs))
 
 	for _, sub := range allSubs {
-		subIds = append(subIds, sub.SubId)
-
 		st := sub.StartDate
 		en := sub.EndDate
 		if st.Before(filter.StartDate) {
@@ -279,10 +277,10 @@ func (s *SubRepo) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) 
 
 		months := utils.MonthToInt(en.Month()) - utils.MonthToInt(st.Month()) + 12*(en.Year()-st.Year())
 		if months < 0 {
-			return 0, nil, fmt.Errorf("invalid dates")
+			continue
 		}
 		sumCost += sub.Price * months
+		subIds = append(subIds, sub.SubId)
 	}
 	return sumCost, subIds, nil
-
 }

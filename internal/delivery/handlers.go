@@ -34,6 +34,15 @@ type HandlingSub struct {
 	EndDate     string `json:"end_date"`
 }
 
+type CostsFilter struct {
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+	Filter    struct {
+		UserId      string `json:"user_id"`
+		ServiceName string `json:"service_name"`
+	} `json:"filter"`
+}
+
 func NewSubsHandler(repo domain.SubscriptionRepository) (*SubsHandler, error) {
 	createSubUC, err := usecase.NewCreateSubUC(repo)
 	if err != nil {
@@ -253,4 +262,72 @@ func (h *SubsHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 		hSubs = append(hSubs, hSub)
 	}
 	utils.MakeResponse(w, http.StatusOK, hSubs)
+}
+
+func (h *SubsHandler) GetTotalCosts(w http.ResponseWriter, r *http.Request) {
+	var req CostsFilter
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "invalid json",
+		})
+		return
+	}
+	stDate, err := utils.ParseMonthYear(req.StartDate)
+	if err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "bad start date: " + err.Error(),
+		})
+		return
+	}
+	var enDate time.Time
+	if req.EndDate != "" {
+		enDate, err = utils.ParseMonthYear(req.EndDate)
+		if err != nil {
+			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+				"message": "parsing end date: " + err.Error(),
+			})
+			return
+		}
+	} else {
+		enDate, _ = utils.ParseMonthYear(ZeroDateString)
+	}
+
+	if req.Filter.ServiceName == "" {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "service name mustn't be empty",
+		})
+		return
+	}
+	var uID uuid.UUID
+	if req.Filter.UserId != "" {
+		uID, err = uuid.Parse(req.Filter.UserId)
+		if err != nil {
+			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+				"message": "can't parse uuid:" + err.Error(),
+			})
+			return
+		}
+	} else {
+		uID = uuid.Nil
+	}
+	filter := usecase.SubsFilterDTO{
+		StartDate:   stDate,
+		EndDate:     enDate,
+		UserID:      uID,
+		ServiceName: req.Filter.ServiceName,
+	}
+	sum, subIds, err := h.TotalCostsUC.TotalCosts(context.Background(), filter)
+	if err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "bad getting total costs: " + err.Error(),
+		})
+		return
+	}
+	var ans struct {
+		TotalSum int   `json:"total_sum"`
+		SubIds   []int `json:"sub_ids"`
+	}
+	ans.TotalSum = sum
+	ans.SubIds = subIds
+	utils.MakeResponse(w, http.StatusOK, ans)
 }
