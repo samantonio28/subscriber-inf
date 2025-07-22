@@ -1,27 +1,33 @@
 package delivery
 
-// func AccessLogMiddleware(logger logger.Logger) mux.MiddlewareFunc {
-// 	return func(next http.Handler) http.Handler {
-// 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 			start := time.Now()
-// 			lrw := NewResponseWriter(w)
+import (
+	"net/http"
+	"time"
 
-// 			requestID := ""
-// 			if ctxVal := r.Context().Value("request_id"); ctxVal != nil {
-// 				requestID = ctxVal.(string)
-// 			}
+	"github.com/gorilla/mux"
+	"github.com/samantonio28/subscriber-inf/internal/logger"
+)
 
-// 			next.ServeHTTP(lrw, r)
+func AccessLogMiddleware(logger logger.Logger) mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
 
-// 			logger.WithFields(&logrus.Fields{
-// 				"method":      r.Method,
-// 				"path":        r.URL.Path,
-// 				"remote_addr": r.RemoteAddr,
-// 				"user_agent":  r.UserAgent(),
-// 				"request_id":  requestID,
-// 				"status":      lrw.statusCode,
-// 				"duration":    time.Since(start).String(),
-// 			}).Info("request completed")
-// 		})
-// 	}
-// }
+			requestID := ""
+			if ctxVal := r.Context().Value("request_id"); ctxVal != nil {
+				requestID = ctxVal.(string)
+			}
+
+			next.ServeHTTP(w, r)
+
+			logger.WithFields(map[string]any{
+				"method":      r.Method,
+				"path":        r.URL.Path,
+				"remote_addr": r.RemoteAddr,
+				"user_agent":  r.UserAgent(),
+				"request_id":  requestID,
+				"duration":    time.Since(start).String(),
+			}).Logger.Info("request completed")
+		})
+	}
+}

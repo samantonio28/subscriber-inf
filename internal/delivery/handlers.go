@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
+	"github.com/samantonio28/subscriber-inf/internal/logger"
 	"github.com/samantonio28/subscriber-inf/internal/usecase"
 	"github.com/samantonio28/subscriber-inf/pkg/utils"
 )
@@ -24,6 +25,7 @@ type SubsHandler struct {
 	GetSubsUC    usecase.GetSubsUC
 	TotalCostsUC usecase.TotalCostsUC
 	UpdateSubUC  usecase.UpdateSubUC
+	logger       *logger.LogrusLogger
 }
 
 type HandlingSub struct {
@@ -43,28 +45,28 @@ type CostsFilter struct {
 	} `json:"filter"`
 }
 
-func NewSubsHandler(repo domain.SubscriptionRepository) (*SubsHandler, error) {
-	createSubUC, err := usecase.NewCreateSubUC(repo)
+func NewSubsHandler(repo domain.SubscriptionRepository, logger *logger.LogrusLogger) (*SubsHandler, error) {
+	createSubUC, err := usecase.NewCreateSubUC(repo, logger)
 	if err != nil {
 		return nil, err
 	}
-	deleteSubUC, err := usecase.NewDeleteSubUC(repo)
+	deleteSubUC, err := usecase.NewDeleteSubUC(repo, logger)
 	if err != nil {
 		return nil, err
 	}
-	getSubUC, err := usecase.NewGetSubUC(repo)
+	getSubUC, err := usecase.NewGetSubUC(repo, logger)
 	if err != nil {
 		return nil, err
 	}
-	getSubsUC, err := usecase.NewGetSubsUC(repo)
+	getSubsUC, err := usecase.NewGetSubsUC(repo, logger)
 	if err != nil {
 		return nil, err
 	}
-	totalCostsUC, err := usecase.NewTotalCostsUC(repo)
+	totalCostsUC, err := usecase.NewTotalCostsUC(repo, logger)
 	if err != nil {
 		return nil, err
 	}
-	updateSubUC, err := usecase.NewUpdateSubUC(repo)
+	updateSubUC, err := usecase.NewUpdateSubUC(repo, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +77,7 @@ func NewSubsHandler(repo domain.SubscriptionRepository) (*SubsHandler, error) {
 		GetSubsUC:    *getSubsUC,
 		TotalCostsUC: *totalCostsUC,
 		UpdateSubUC:  *updateSubUC,
+		logger:       logger,
 	}, nil
 }
 

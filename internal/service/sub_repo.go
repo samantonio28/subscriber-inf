@@ -280,6 +280,9 @@ func (s *SubRepo) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) 
 	subIds := make([]domain.SubID, 0, len(allSubs))
 
 	for _, sub := range allSubs {
+		if sub.ServiceName != filter.ServiceName {
+			continue
+		}
 		st := sub.StartDate
 		en := sub.EndDate
 		if st.Before(filter.StartDate) {

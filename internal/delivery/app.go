@@ -9,6 +9,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/samantonio28/subscriber-inf/internal/logger"
 	"github.com/samantonio28/subscriber-inf/internal/service"
 	"github.com/samantonio28/subscriber-inf/pkg/config"
 )
@@ -37,14 +38,21 @@ func App() {
 		log.Fatal("Failed to create sub repo:", err)
 	}
 
-	r := mux.NewRouter()
-	// r.Use(AccessLogMiddleware(logger))
+	logger, err := logger.NewLogrusLogger("logs/access.log")
+	if err != nil {
+		fmt.Printf("Failed to initialize logger: %v\n", err)
+		return
+	}
 
-	handler, err := NewSubsHandler(repo)
+	r := mux.NewRouter()
+	r.Use(AccessLogMiddleware(logger))
+
+	handler, err := NewSubsHandler(repo, logger)
 	if err != nil {
 		log.Fatal("Failed to create sub hander:", err)
 	}
 
+	r.Use(AccessLogMiddleware(logger))
 	r.HandleFunc("/subscriptions", handler.CreateSubscription).Methods("POST")
 	r.HandleFunc("/subscriptions", handler.GetSubscriptions).Methods("GET")
 	r.HandleFunc("/subscriptions/{id}", handler.DeleteSubscription).Methods("DELETE")
