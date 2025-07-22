@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: dev
+    ports: 
+      - "8000:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  backend:
+    build: .
+    ports:
+      - "8080:8080"
+    restart: always
+    volumes:
+      - ./backend:/app
+      - ./logs:/logs
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: dev
+      POSTGRES_SSLMODE: disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    name: app_network
+    driver: bridge
