@@ -49,7 +49,7 @@ func App() {
 	r.HandleFunc("/subscriptions", handler.GetSubscriptions).Methods("GET")
 	r.HandleFunc("/subscriptions/{id}", handler.DeleteSubscription).Methods("DELETE")
 	r.HandleFunc("/subscriptions/{id}", handler.GetSubscription).Methods("GET")
-	// r.HandleFunc("/subscriptions/{id}", ).Methods("PUT")
+	r.HandleFunc("/subscriptions/{id}", handler.UpdateSubscription).Methods("PUT")
 	r.HandleFunc("/total_costs", handler.GetTotalCosts).Methods("GET")
 
 	server := http.Server{

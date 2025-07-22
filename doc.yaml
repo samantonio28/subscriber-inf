@@ -128,15 +128,8 @@ paths:
       requestBody:
         content:
           application/json:
-            schema:
-              type: object
-              properties:
-                sub_id:
-                  type: integer
-                  format: int64
-                  example: 15
-                subscription:
-                  $ref: '#/components/schemas/Subscription'
+            schema:    
+              $ref: '#/components/schemas/Subscription'
         required: true
       responses:
         '200':

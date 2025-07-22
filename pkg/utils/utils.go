@@ -47,6 +47,9 @@ func MonthToInt(m time.Month) int {
 }
 
 func ParseMonthYear(s string) (time.Time, error) {
+	if s == "" {
+		return time.Time{}, fmt.Errorf("empty date")
+	}
 	re := regexp.MustCompile(`^\d{2}-\d{4}$`)
 	if !re.MatchString(s) {
 		return time.Time{}, fmt.Errorf("not compiles XX-XXXX")

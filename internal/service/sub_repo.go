@@ -175,12 +175,22 @@ func (s *SubRepo) UpdateSub(ctx context.Context, sub domain.Subscription) error 
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
+	subToCheck, err := s.Sub(ctx, sub.SubId)
+	if err != nil {
+		return fmt.Errorf("sub does not exist: %w", err)
+	}
 
 	serviceId := -1
 	if sub.ServiceName != "" {
 		if err := tx.QueryRow(ctx, PutServiceName, sub.ServiceName).Scan(&serviceId); err != nil {
 			return fmt.Errorf("failed to get service_id: %w", err)
 		}
+	}
+	if sub.UserID == uuid.Nil {
+		return fmt.Errorf("bad data: user_id cannot be nil")
+	}
+	if sub.UserID != subToCheck.UserID {
+		return fmt.Errorf("bad data: user_id cannot be changed")
 	}
 
 	query := `UPDATE subscriptions SET`
@@ -211,6 +221,10 @@ func (s *SubRepo) UpdateSub(ctx context.Context, sub domain.Subscription) error 
 	if !sub.EndDate.IsZero() {
 		if sub.EndDate.Day() != 1 {
 			return fmt.Errorf("bad data: day must be 1st (end)")
+		}
+		if !sub.StartDate.IsZero() && sub.EndDate.Before(sub.StartDate) ||
+			sub.StartDate.IsZero() && sub.EndDate.Before(subToCheck.StartDate) {
+			return fmt.Errorf("bad data: end date must be after start date")
 		}
 		query += fmt.Sprintf(" end_date = $%d,", argPos)
 		args = append(args, sub.EndDate)

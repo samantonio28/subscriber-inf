@@ -78,54 +78,34 @@ func NewSubsHandler(repo domain.SubscriptionRepository) (*SubsHandler, error) {
 	}, nil
 }
 
-func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request) {
-	var req HandlingSub
+func SerializeSub(req HandlingSub) (usecase.SubscriptionDTO, error) {
 	var err error
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
-			"message": "invalid json",
-		})
-		return
-	}
 	if req.ServiceName == "" {
-		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
-			"message": "service name mustn't be empty",
-		})
-		return
+		return usecase.SubscriptionDTO{}, fmt.Errorf("service name mustn't be empty")
 	}
+	if req.Price < 0 {
+		return usecase.SubscriptionDTO{}, fmt.Errorf("price must be zero or positive")
+	}
+
 	var uID uuid.UUID
 	if req.UserId != "" {
 		uID, err = uuid.Parse(req.UserId)
 		if err != nil {
-			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
-				"message": "can't parse uuid:" + err.Error(),
-			})
-			return
+			return usecase.SubscriptionDTO{}, fmt.Errorf("can't parse uuid: %v", err)
 		}
 	} else {
 		uID = uuid.Nil
 	}
-	if req.Price < 0 {
-		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
-			"message": "price is zero or positive",
-		})
-		return
-	}
+
 	stDate, err := utils.ParseMonthYear(req.StartDate)
 	if err != nil {
-		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
-			"message": "parsing start date: " + err.Error(),
-		})
-		return
+		return usecase.SubscriptionDTO{}, fmt.Errorf("parsing start date: %v", err)
 	}
 	var enDate time.Time
 	if req.EndDate != "" {
 		enDate, err = utils.ParseMonthYear(req.EndDate)
 		if err != nil {
-			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
-				"message": "parsing end date: " + err.Error(),
-			})
-			return
+			return usecase.SubscriptionDTO{}, fmt.Errorf("parsing end date: %v", err)
 		}
 	} else {
 		enDate, _ = utils.ParseMonthYear(ZeroDateString)
@@ -139,6 +119,26 @@ func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request)
 		StartDate:   stDate,
 		EndDate:     enDate,
 	}
+	return subDTO, nil
+}
+
+func (h *SubsHandler) CreateSubscription(w http.ResponseWriter, r *http.Request) {
+	var err error
+	var req HandlingSub
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "invalid json",
+		})
+	}
+
+	subDTO, err := SerializeSub(req)
+	if err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "bad with serializing sub: " + err.Error(),
+		})
+		return
+	}
+
 	subId, err := h.CreateSubUC.NewSub(context.Background(), subDTO)
 	if err != nil {
 		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
@@ -330,4 +330,82 @@ func (h *SubsHandler) GetTotalCosts(w http.ResponseWriter, r *http.Request) {
 	ans.TotalSum = sum
 	ans.SubIds = subIds
 	utils.MakeResponse(w, http.StatusOK, ans)
+}
+
+func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request) {
+	var req HandlingSub
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "invalid json",
+		})
+		return
+	}
+	vars := mux.Vars(r)
+	subId, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "invalid sub id: " + err.Error(),
+		})
+		return
+	}
+
+	if req.ServiceName == "" {
+		req.ServiceName = " "
+	}
+
+	var uID uuid.UUID
+	if req.UserId != "" {
+		uID, err = uuid.Parse(req.UserId)
+		if err != nil {
+			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+				"message": "can't parse uuid: " + err.Error(),
+			})
+			return
+		}
+	} else {
+		uID = uuid.Nil
+	}
+
+	stDate, err := utils.ParseMonthYear(req.StartDate)
+	if err != nil {
+		if err.Error() == "empty date" {
+			stDate, _ = utils.ParseMonthYear(ZeroDateString)
+		} else {
+			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+				"message": "bad parsing start date: " + err.Error(),
+			})
+			return
+		}
+	}
+	var enDate time.Time
+	if req.EndDate != "" {
+		enDate, err = utils.ParseMonthYear(req.EndDate)
+		if err != nil && err.Error() != "empty date" {
+			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+				"message": "bad parsing end date: " + err.Error(),
+			})
+			return
+		}
+	} else {
+		enDate, _ = utils.ParseMonthYear(ZeroDateString)
+	}
+
+	subDTO := usecase.SubscriptionDTO{
+		SubId:       0,
+		UserId:      uID,
+		ServiceName: req.ServiceName,
+		Price:       req.Price,
+		StartDate:   stDate,
+		EndDate:     enDate,
+	}
+
+	if err := h.UpdateSubUC.UpdateSub(context.Background(), subId, subDTO); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "bad updating sub: " + err.Error(),
+		})
+		return
+	}
+	utils.MakeResponse(w, http.StatusOK, map[string]string{
+		"message": "subscription updated",
+	})
 }

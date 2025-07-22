@@ -18,6 +18,16 @@ func NewUpdateSubUC(subR domain.SubscriptionRepository) (*UpdateSubUC, error) {
 }
 
 func (u *UpdateSubUC) UpdateSub(ctx context.Context, subId int, input SubscriptionDTO) error {
+	subToCheck, err := u.subR.Sub(ctx, domain.SubID(subId))
+	if err != nil {
+		return err
+	}
+	if input.StartDate.IsZero() {
+		input.StartDate = subToCheck.StartDate
+	}
+	if input.ServiceName == " " {
+		input.ServiceName = subToCheck.ServiceName
+	}
 	s, err := DTOToSub(input)
 	if err != nil {
 		return err
