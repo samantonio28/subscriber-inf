@@ -215,7 +215,7 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 	stDate := utils.DateString(sub.StartDate)
 	enDate := utils.DateString(sub.EndDate)
 
-	var hSub HandlingSub = HandlingSub{
+	hSub := HandlingSub{
 		ServiceName: sub.ServiceName,
 		Price:       sub.Price,
 		UserId:      sub.UserId.String(),
@@ -255,7 +255,7 @@ func (h *SubsHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 		stDate := utils.DateString(s.StartDate)
 		enDate := utils.DateString(s.EndDate)
 
-		var hSub HandlingSub = HandlingSub{
+		hSub := HandlingSub{
 			ServiceName: s.ServiceName,
 			Price:       s.Price,
 			UserId:      s.UserId.String(),

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -83,7 +84,11 @@ func (s *SubRepo) Sub(ctx context.Context, subId domain.SubID) (domain.Subscript
 	if err != nil {
 		return domain.Subscription{}, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			log.Printf("failed to rollback transaction: %v", err)
+		}
+	}()
 
 	var sub domain.Subscription
 	var enDate pgtype.Date
@@ -144,7 +149,11 @@ func (s *SubRepo) StoreSub(ctx context.Context, sub domain.Subscription) (domain
 	if err != nil {
 		return 0, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			log.Printf("failed to rollback transaction: %v", err)
+		}
+	}()
 
 	var serviceId int
 
@@ -174,7 +183,12 @@ func (s *SubRepo) UpdateSub(ctx context.Context, sub domain.Subscription) error 
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil {
+			log.Printf("failed to rollback transaction: %v", err)
+		}
+	}()
+
 	subToCheck, err := s.Sub(ctx, sub.SubId)
 	if err != nil {
 		return fmt.Errorf("sub does not exist: %w", err)
