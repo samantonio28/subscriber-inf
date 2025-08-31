@@ -2,7 +2,9 @@ package delivery
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -206,7 +208,7 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 	}
 	sub, err := h.GetSubUC.SubById(context.Background(), subId)
 	if err != nil {
-		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+		utils.MakeResponse(w, http.StatusNotFound, map[string]string{
 			"message": "bad getting sub: " + err.Error(),
 		})
 		return
@@ -226,17 +228,7 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SubsHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		UserId string `json:"user_id"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
-			"message": "invalid json",
-		})
-		return
-	}
-	userId, err := uuid.Parse(req.UserId)
+	userId, err := uuid.Parse(r.URL.Query().Get("uuid"))
 	if err != nil {
 		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
 			"message": "invalid user id: " + err.Error(),
@@ -403,6 +395,12 @@ func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.UpdateSubUC.UpdateSub(context.Background(), subId, subDTO); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"message": "subscription not found",
+			})
+			return
+		}
 		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
 			"message": "bad updating sub: " + err.Error(),
 		})
