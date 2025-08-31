@@ -9,7 +9,7 @@ tags:
   description: subscriptions actions
 
 paths:
-  /subcriptions:
+  /subscriptions:
     post:
       tags:
       - subscriptions
