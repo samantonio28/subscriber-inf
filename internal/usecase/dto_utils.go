@@ -12,6 +12,7 @@ type SubscriptionDTO struct {
 	UserId      uuid.UUID
 	ServiceName string
 	Price       int
+	SubType     string
 	StartDate   time.Time
 	EndDate     time.Time
 }
@@ -21,6 +22,7 @@ type SubsFilterDTO struct {
 	EndDate     time.Time
 	UserID      uuid.UUID
 	ServiceName string
+	SubType     string
 }
 
 func SubToDTO(sub domain.Subscription) SubscriptionDTO {
@@ -29,6 +31,7 @@ func SubToDTO(sub domain.Subscription) SubscriptionDTO {
 		UserId:      sub.UserID,
 		ServiceName: sub.ServiceName,
 		Price:       sub.Price,
+		SubType:     sub.SubType.String(),
 		StartDate:   sub.StartDate,
 		EndDate:     sub.EndDate,
 	}
@@ -40,6 +43,7 @@ func DTOToSub(dto SubscriptionDTO) (domain.Subscription, error) {
 		dto.UserId,
 		dto.ServiceName,
 		dto.Price,
+		dto.SubType,
 		dto.StartDate,
 		dto.EndDate,
 	)
@@ -55,6 +59,7 @@ func FilterToDTO(fil domain.SubsFilter) SubsFilterDTO {
 		EndDate:     fil.EndDate,
 		UserID:      fil.UserID,
 		ServiceName: fil.ServiceName,
+		SubType:     fil.SubType.String(),
 	}
 }
 
@@ -64,6 +69,7 @@ func DTOToFilter(dto SubsFilterDTO) (domain.SubsFilter, error) {
 		dto.EndDate,
 		dto.UserID,
 		dto.ServiceName,
+		dto.SubType,
 	)
 	if err != nil {
 		return domain.SubsFilter{}, err

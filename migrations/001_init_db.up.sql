@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TYPE subscription_type AS ENUM ('usual', 'promocode');
+CREATE TYPE subscription_type AS ENUM ('usual', 'promocode', 'family');
 CREATE TYPE payment_type AS ENUM ('income', 'expence');
 
 CREATE TABLE services (

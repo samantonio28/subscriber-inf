@@ -2,7 +2,7 @@ openapi: 3.0.4
 
 info:
   title: Subscriber Inf - OpenAPI 3.0
-  version: 1.0.1
+  version: 1.0.2
 
 tags:
 - name: subscriptions
@@ -198,10 +198,13 @@ paths:
                     service_name:
                       type: string
                       example: "Yandex Plus"
+                    sub_type:
+                      $ref: "#/components/schemas/SubscriptionType"
                   required:
                   - user_id
               required:
               - start_date
+              - service_name
               - filter
       responses:
         '200':
@@ -245,6 +248,10 @@ components:
       properties:
         message:
           type: string
+    SubscriptionType:
+      type: string
+      enum: [ usual, promocode, family ]
+      default: usual
     Subscription:
       type: object
       properties:
@@ -258,13 +265,13 @@ components:
         user_id:
           type: string
           format: uuid
+        sub_type:
+          $ref: "#/components/schemas/SubscriptionType"
         start_date:
           type: string
-          format: date
           example: "07-2025"
         end_date:
           type: string
-          format: date
           example: "08-2025"
       required:
       - service_name

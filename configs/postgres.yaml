@@ -1,6 +1,6 @@
 postgres:
   host: "postgres"
-  port: 5432
+  port: 8000
   user: "postgres"
   password: "secret"
   dbname: "dev"

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -34,16 +35,18 @@ type HandlingSub struct {
 	ServiceName string `json:"service_name"`
 	Price       int    `json:"price"`
 	UserId      string `json:"user_id"`
+	SubType     string `json:"sub_type"`
 	StartDate   string `json:"start_date"`
 	EndDate     string `json:"end_date"`
 }
 
 type CostsFilter struct {
-	StartDate string `json:"start_date"`
-	EndDate   string `json:"end_date"`
+	StartDate string  `json:"start_date"`
+	EndDate   *string `json:"end_date,omitempty"`
 	Filter    struct {
-		UserId      string `json:"user_id"`
-		ServiceName string `json:"service_name"`
+		ServiceName string  `json:"service_name"`
+		UserId      *string `json:"user_id,omitempty"`
+		SubType     *string `json:"sub_type,omitempty"`
 	} `json:"filter"`
 }
 
@@ -121,6 +124,7 @@ func SerializeSub(req HandlingSub) (usecase.SubscriptionDTO, error) {
 		UserId:      uID,
 		ServiceName: req.ServiceName,
 		Price:       req.Price,
+		SubType:     req.SubType,
 		StartDate:   stDate,
 		EndDate:     enDate,
 	}
@@ -221,6 +225,7 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 		ServiceName: sub.ServiceName,
 		Price:       sub.Price,
 		UserId:      sub.UserId.String(),
+		SubType:     sub.SubType,
 		StartDate:   stDate,
 		EndDate:     enDate,
 	}
@@ -228,6 +233,7 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SubsHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
+	log.Println("started")
 	userId, err := uuid.Parse(r.URL.Query().Get("uuid"))
 	if err != nil {
 		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
@@ -242,6 +248,7 @@ func (h *SubsHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	log.Println("здесь")
 	hSubs := make([]HandlingSub, 0, len(subs))
 	for _, s := range subs {
 		stDate := utils.DateString(s.StartDate)
@@ -251,6 +258,7 @@ func (h *SubsHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 			ServiceName: s.ServiceName,
 			Price:       s.Price,
 			UserId:      s.UserId.String(),
+			SubType:     s.SubType,
 			StartDate:   stDate,
 			EndDate:     enDate,
 		}
@@ -275,8 +283,8 @@ func (h *SubsHandler) GetTotalCosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var enDate time.Time
-	if req.EndDate != "" {
-		enDate, err = utils.ParseMonthYear(req.EndDate)
+	if req.EndDate != nil {
+		enDate, err = utils.ParseMonthYear(*req.EndDate)
 		if err != nil {
 			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
 				"message": "parsing end date: " + err.Error(),
@@ -294,8 +302,8 @@ func (h *SubsHandler) GetTotalCosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var uID uuid.UUID
-	if req.Filter.UserId != "" {
-		uID, err = uuid.Parse(req.Filter.UserId)
+	if req.Filter.UserId != nil {
+		uID, err = uuid.Parse(*req.Filter.UserId)
 		if err != nil {
 			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
 				"message": "can't parse uuid:" + err.Error(),
@@ -305,11 +313,17 @@ func (h *SubsHandler) GetTotalCosts(w http.ResponseWriter, r *http.Request) {
 	} else {
 		uID = uuid.Nil
 	}
+
+	sType := ""
+	if req.Filter.SubType != nil {
+		sType = *req.Filter.SubType
+	}
 	filter := usecase.SubsFilterDTO{
 		StartDate:   stDate,
 		EndDate:     enDate,
 		UserID:      uID,
 		ServiceName: req.Filter.ServiceName,
+		SubType:     sType,
 	}
 	sum, subIds, err := h.TotalCostsUC.TotalCosts(context.Background(), filter)
 	if err != nil {
@@ -390,6 +404,7 @@ func (h *SubsHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request)
 		UserId:      uID,
 		ServiceName: req.ServiceName,
 		Price:       req.Price,
+		SubType:     req.SubType,
 		StartDate:   stDate,
 		EndDate:     enDate,
 	}

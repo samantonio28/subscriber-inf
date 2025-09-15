@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"log"
 
 	"github.com/google/uuid"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
@@ -25,6 +26,7 @@ func NewGetSubsUC(subR domain.SubscriptionRepository, logger *logger.LogrusLogge
 
 func (u *GetSubsUC) SubsByUserId(ctx context.Context, userId uuid.UUID) ([]SubscriptionDTO, error) {
 	u.logger.Info("getting subscriptions by user id", userId)
+	log.Println("getting subscriptions by user id", userId)
 	subs, err := u.subR.UserSubs(ctx, userId)
 	if err != nil {
 		u.logger.Error("error getting subscriptions by user id", userId, err)

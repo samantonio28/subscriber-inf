@@ -48,8 +48,8 @@ RETURNING service_id;
 `
 	PutSub = `
 INSERT INTO subscriptions
-(service_id, price, start_date, end_date)
-VALUES ($1, $2, $3, $4)
+(service_id, price, sub_type, start_date, end_date)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING sub_id;
 `
 	PutSubIdUserId = `
@@ -165,7 +165,7 @@ func (s *SubRepo) StoreSub(ctx context.Context, sub domain.Subscription) (domain
 	if sub.EndDate.IsZero() {
 		enDateOrNil = nil
 	}
-	if err := tx.QueryRow(ctx, PutSub, serviceId, sub.Price, sub.StartDate, enDateOrNil).Scan(&subId); err != nil {
+	if err := tx.QueryRow(ctx, PutSub, serviceId, sub.Price, sub.SubType, sub.StartDate, enDateOrNil).Scan(&subId); err != nil {
 		return 0, fmt.Errorf("failed to insert sub: %w", err)
 	}
 	_, err = tx.Exec(ctx, PutSubIdUserId, subId, sub.UserID)
@@ -223,6 +223,12 @@ func (s *SubRepo) UpdateSub(ctx context.Context, sub domain.Subscription) error 
 		argPos++
 	}
 
+	if subtype, err := domain.NewSubscriptionType(sub.SubType.String()); err == nil {
+		query += fmt.Sprintf(" sub_type = $%d", argPos)
+		args = append(args, subtype.String())
+		argPos++
+	}
+
 	if !sub.StartDate.IsZero() {
 		if sub.StartDate.Day() != 1 {
 			return fmt.Errorf("bad data: day must be 1st (start)")
@@ -269,14 +275,25 @@ func (s *SubRepo) DeleteSub(ctx context.Context, subId domain.SubID) error {
 	if err != nil {
 		return err
 	}
-	rowsAffected := res.RowsAffected()
-	if rowsAffected == 0 {
+	if r := res.RowsAffected(); r == 0 {
 		return fmt.Errorf("no subs deleted")
 	}
 	return nil
 }
 
 func (s *SubRepo) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) (int, []domain.SubID, error) {
+	solve := "backend"
+	switch solve {
+	case "db":
+		return s.subsTotalCostsDB(ctx, filter)
+	case "backend":
+		return s.subsTotalCostsBackend(ctx, filter)
+	default:
+		return 0, nil, nil
+	}
+}
+
+func (s *SubRepo) subsTotalCostsBackend(ctx context.Context, filter domain.SubsFilter) (int, []domain.SubID, error) {
 	if filter.UserID == uuid.Nil || filter.StartDate.IsZero() || !filter.EndDate.IsZero() && filter.EndDate.Before(filter.StartDate) {
 		return 0, nil, fmt.Errorf("user id and start date is required || end date must be after start date")
 	}
@@ -294,6 +311,9 @@ func (s *SubRepo) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) 
 	subIds := make([]domain.SubID, 0, len(allSubs))
 
 	for _, sub := range allSubs {
+		if filter.SubType.String() != "" && sub.SubType != filter.SubType {
+			continue
+		}
 		if sub.ServiceName != filter.ServiceName {
 			continue
 		}
@@ -314,4 +334,8 @@ func (s *SubRepo) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) 
 		subIds = append(subIds, sub.SubId)
 	}
 	return sumCost, subIds, nil
+}
+
+func (s *SubRepo) subsTotalCostsDB(_ context.Context, _ domain.SubsFilter) (int, []domain.SubID, error) {
+	return 0, nil, nil
 }
