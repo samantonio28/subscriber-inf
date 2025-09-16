@@ -11,6 +11,8 @@ require (
 )
 
 require (
+	github.com/corpix/uarand v0.0.0-20170723150923-031be390f409 // indirect
+	github.com/icrowley/fake v0.0.0-20240710202011-f797eb4a99c0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect

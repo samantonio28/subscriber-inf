@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
@@ -27,18 +29,15 @@ func NewSubRepo(p *pgxpool.Pool) (*SubRepo, error) {
 
 const (
 	GetSubById = `
-SELECT sub_id, service_id, price, start_date, end_date 
+SELECT sub_id, user_id, service_id, price, sub_type, start_date, end_date 
 FROM subscriptions
 WHERE sub_id = $1;
-`
-	GetUserBySubId = `
-SELECT user_id FROM users_subs WHERE sub_id = $1;
 `
 	GetServiceNameById = `
 SELECT service_name FROM services WHERE service_id = $1;	
 `
 	GetSubByUserId = `
-SELECT sub_id FROM users_subs WHERE user_id = $1;	
+SELECT sub_id FROM subscriptions WHERE user_id = $1;	
 `
 	PutServiceName = `
 INSERT INTO services (service_name) 
@@ -48,18 +47,14 @@ RETURNING service_id;
 `
 	PutSub = `
 INSERT INTO subscriptions
-(service_id, price, sub_type, start_date, end_date)
-VALUES ($1, $2, $3, $4, $5)
+(user_id, service_id, price, sub_type, start_date, end_date)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING sub_id;
-`
-	PutSubIdUserId = `
-INSERT INTO users_subs
-(sub_id, user_id)
-VALUES ($1, $2);
 `
 	DeleteSub = `
 DELETE FROM subscriptions WHERE sub_id = $1;
 `
+	// unused
 	GetAllData = `
 SELECT 
     us.sub_id,
@@ -85,29 +80,36 @@ func (s *SubRepo) Sub(ctx context.Context, subId domain.SubID) (domain.Subscript
 		return domain.Subscription{}, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 			log.Printf("failed to rollback transaction: %v", err)
 		}
 	}()
 
 	var sub domain.Subscription
+	var subType string
 	var enDate pgtype.Date
 	var serviceId int
 	if err := tx.QueryRow(ctx, GetSubById, int(subId)).Scan(
 		&sub.SubId,
+		&sub.UserID,
 		&serviceId,
 		&sub.Price,
+		&subType,
 		&sub.StartDate,
 		&enDate,
 	); err != nil {
 		return domain.Subscription{}, err
 	}
+	if s, err := domain.NewSubscriptionType(subType); err != nil {
+		return domain.Subscription{}, err
+	} else {
+		sub.SubType = *s
+	}
+
 	if enDate.Valid {
 		sub.EndDate = enDate.Time
 	}
-	if err := tx.QueryRow(ctx, GetUserBySubId, int(subId)).Scan(&sub.UserID); err != nil {
-		return domain.Subscription{}, err
-	}
+
 	if err := tx.QueryRow(ctx, GetServiceNameById, serviceId).Scan(&sub.ServiceName); err != nil {
 		return domain.Subscription{}, err
 	}
@@ -150,7 +152,7 @@ func (s *SubRepo) StoreSub(ctx context.Context, sub domain.Subscription) (domain
 		return 0, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 			log.Printf("failed to rollback transaction: %v", err)
 		}
 	}()
@@ -165,13 +167,10 @@ func (s *SubRepo) StoreSub(ctx context.Context, sub domain.Subscription) (domain
 	if sub.EndDate.IsZero() {
 		enDateOrNil = nil
 	}
-	if err := tx.QueryRow(ctx, PutSub, serviceId, sub.Price, sub.SubType, sub.StartDate, enDateOrNil).Scan(&subId); err != nil {
+	if err := tx.QueryRow(ctx, PutSub, sub.UserID, serviceId, sub.Price, sub.SubType.String(), sub.StartDate, enDateOrNil).Scan(&subId); err != nil {
 		return 0, fmt.Errorf("failed to insert sub: %w", err)
 	}
-	_, err = tx.Exec(ctx, PutSubIdUserId, subId, sub.UserID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to insert user subscription: %w", err)
-	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return 0, fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -184,7 +183,7 @@ func (s *SubRepo) UpdateSub(ctx context.Context, sub domain.Subscription) error 
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 			log.Printf("failed to rollback transaction: %v", err)
 		}
 	}()

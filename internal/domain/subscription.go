@@ -25,7 +25,7 @@ func (t *SubscriptionType) String() string {
 
 func NewSubscriptionType(s string) (*SubscriptionType, error) {
 	switch s {
-	case "usual":
+	case "usual", "":
 		return &Usual, nil
 	case "promocode":
 		return &Promocode, nil

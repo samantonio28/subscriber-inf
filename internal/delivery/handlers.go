@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -233,7 +232,6 @@ func (h *SubsHandler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SubsHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
-	log.Println("started")
 	userId, err := uuid.Parse(r.URL.Query().Get("uuid"))
 	if err != nil {
 		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
@@ -248,7 +246,6 @@ func (h *SubsHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	log.Println("здесь")
 	hSubs := make([]HandlingSub, 0, len(subs))
 	for _, s := range subs {
 		stDate := utils.DateString(s.StartDate)
