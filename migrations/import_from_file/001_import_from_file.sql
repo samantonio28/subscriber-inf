@@ -10,6 +10,7 @@ COPY sub_durations FROM '/tmp/sub_durations.csv' WITH CSV HEADER;
 COPY promocodes FROM '/tmp/promocodes.csv' WITH CSV HEADER;
 COPY cards FROM '/tmp/cards.csv' WITH CSV HEADER;
 COPY payments FROM '/tmp/payments.csv' WITH CSV HEADER;
+COPY user_referrals FROM '/tmp/user_referrals.csv' WITH CSV HEADER;
 
 -- настраиваем последовательности (есть несколько generated as identity, сразу их правильно ставим согласно данным из csv)
 SELECT setval(pg_get_serial_sequence('services', 'service_id'), coalesce(max(service_id), 0) + 1, false) FROM services;

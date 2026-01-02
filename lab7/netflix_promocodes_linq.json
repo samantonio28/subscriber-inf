@@ -1,0 +1,75 @@
+{
+  "query_type": "netflix_promocodes_linq",
+  "description": "Действительные промокоды Netflix для пользователей с истекающими подписками (LINQ версия)",
+  "results": [
+    {
+      "service_name": "Netflix",
+      "user_name": "ShawnCole",
+      "user_email": "CherylJones@Centidel.gov",
+      "promocode": "y13fqjmy48",
+      "promocode_expires": "2026-02-10",
+      "subscription_ends": "2025-12-01",
+      "days_until_expiry": 21,
+      "urgency_level": "LOW",
+      "message": "У ShawnCole подписка истекает через 21 дней. Промокод y13fqjmy48 действителен до 2026-02-10"
+    },
+    {
+      "service_name": "Netflix",
+      "user_name": "ipsam",
+      "user_email": "iTucker@Linkbuzz.name",
+      "promocode": "7l4vw44grj",
+      "promocode_expires": "2026-04-10",
+      "subscription_ends": "2025-12-01",
+      "days_until_expiry": 21,
+      "urgency_level": "LOW",
+      "message": "У ipsam подписка истекает через 21 дней. Промокод 7l4vw44grj действителен до 2026-04-10"
+    },
+    {
+      "service_name": "Netflix",
+      "user_name": "qui",
+      "user_email": "dChapman@Fivebridge.mil",
+      "promocode": "o77x7tentk",
+      "promocode_expires": "2025-12-10",
+      "subscription_ends": "2026-01-01",
+      "days_until_expiry": 52,
+      "urgency_level": "LOW",
+      "message": "У qui подписка истекает через 52 дней. Промокод o77x7tentk действителен до 2025-12-10"
+    },
+    {
+      "service_name": "Netflix",
+      "user_name": "qui",
+      "user_email": "dChapman@Fivebridge.mil",
+      "promocode": "nloljfecyo",
+      "promocode_expires": "2026-02-10",
+      "subscription_ends": "2026-01-01",
+      "days_until_expiry": 52,
+      "urgency_level": "LOW",
+      "message": "У qui подписка истекает через 52 дней. Промокод nloljfecyo действителен до 2026-02-10"
+    },
+    {
+      "service_name": "Netflix",
+      "user_name": "omnis_quo",
+      "user_email": "KatherineHernandez@Shuffledrive.info",
+      "promocode": "arg6v3mdt0",
+      "promocode_expires": "2026-02-10",
+      "subscription_ends": "2026-01-01",
+      "days_until_expiry": 52,
+      "urgency_level": "LOW",
+      "message": "У omnis_quo подписка истекает через 52 дней. Промокод arg6v3mdt0 действителен до 2026-02-10"
+    },
+    {
+      "service_name": "Netflix",
+      "user_name": "JohnMcdonald",
+      "user_email": "RalphJenkins@Gabvine.info",
+      "promocode": "tosb6cq4q9",
+      "promocode_expires": "2026-05-10",
+      "subscription_ends": "2026-01-01",
+      "days_until_expiry": 52,
+      "urgency_level": "LOW",
+      "message": "У JohnMcdonald подписка истекает через 52 дней. Промокод tosb6cq4q9 действителен до 2026-05-10"
+    }
+  ],
+  "summary": {
+    "total_promocodes": 6
+  }
+}

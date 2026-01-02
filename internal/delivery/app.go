@@ -10,11 +10,12 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/logger"
+	"github.com/samantonio28/subscriber-inf/internal/redis"
 	"github.com/samantonio28/subscriber-inf/internal/service"
 	"github.com/samantonio28/subscriber-inf/pkg/config"
 )
 
-func App() {
+func App(redisClient *redis.Client) {
 	cfg, err := config.LoadConfig("configs/postgres.yaml")
 	if err != nil {
 		log.Fatal("Failed to load config:", err)
@@ -52,6 +53,8 @@ func App() {
 		log.Fatal("Failed to create sub hander:", err)
 	}
 
+	lab9Handler := NewLab9Handler(pool, logger, redisClient)
+
 	r.Use(AccessLogMiddleware(logger))
 	r.HandleFunc("/subscriptions", handler.CreateSubscription).Methods("POST")
 	r.HandleFunc("/subscriptions", handler.GetSubscriptions).Methods("GET")
@@ -59,6 +62,8 @@ func App() {
 	r.HandleFunc("/subscriptions/{id}", handler.GetSubscription).Methods("GET")
 	r.HandleFunc("/subscriptions/{id}", handler.UpdateSubscription).Methods("PUT")
 	r.HandleFunc("/total_costs", handler.GetTotalCosts).Methods("POST")
+
+	r.HandleFunc("/lab9/{num:[1-7]}", lab9Handler.Lab9Handler).Methods("GET", "POST")
 
 	server := http.Server{
 		Addr:         ":8080",

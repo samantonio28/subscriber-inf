@@ -1,0 +1,7 @@
+HashAggregate ()
+    Group Key: id
+    Filter: (count(*) < 2)
+    Batches: 1
+    -> Seq Scan on route ()
+    Filter: (route_type = 1)
+    

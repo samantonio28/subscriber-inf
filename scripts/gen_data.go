@@ -14,6 +14,37 @@ import (
 )
 
 // addUsers добавляет 1000 пользователей и возвращает их UUID
+// func addUsers(pool *pgxpool.Pool) ([]uuid.UUID, error) {
+// 	userIDs := make([]uuid.UUID, 0, 1000)
+
+// 	for i := range 1000 {
+// 		userID := uuid.New()
+// 		userIDs = append(userIDs, userID)
+
+// 		email := fake.EmailAddress()
+// 		password := fake.Password(8, 30, true, true, true)
+// 		userName := fake.UserName()
+// 		if len(userName) > 20 {
+// 			userName = userName[:20]
+// 		}
+// 		age := 18 + rand.Intn(50)   // возраст от 18 до 67
+// 		balance := rand.Intn(10000) // баланс от 0 до 9999
+
+// 		_, err := pool.Exec(context.Background(), `
+// 			INSERT INTO users (user_id, email, password, user_name, age, balance)
+// 			VALUES ($1, $2, $3, $4, $5, $6)
+// 		`, userID, email, password, userName, age, balance)
+
+// 		if err != nil {
+// 			return nil, fmt.Errorf("failed to insert user %d: %w", i, err)
+// 		}
+// 	}
+
+// 	log.Printf("Added %d users", len(userIDs))
+// 	return userIDs, nil
+// }
+
+// addUsers добавляет 1000 пользователей и создает реферальные связи
 func addUsers(pool *pgxpool.Pool) ([]uuid.UUID, error) {
 	userIDs := make([]uuid.UUID, 0, 1000)
 
@@ -27,8 +58,8 @@ func addUsers(pool *pgxpool.Pool) ([]uuid.UUID, error) {
 		if len(userName) > 20 {
 			userName = userName[:20]
 		}
-		age := 18 + rand.Intn(50)   // возраст от 18 до 67
-		balance := rand.Intn(10000) // баланс от 0 до 9999
+		age := 18 + rand.Intn(50)
+		balance := rand.Intn(10000)
 
 		_, err := pool.Exec(context.Background(), `
 			INSERT INTO users (user_id, email, password, user_name, age, balance)
@@ -41,7 +72,104 @@ func addUsers(pool *pgxpool.Pool) ([]uuid.UUID, error) {
 	}
 
 	log.Printf("Added %d users", len(userIDs))
+
+	// Теперь создаем реферальные связи
+	if err := addReferrals(pool, userIDs); err != nil {
+		return nil, fmt.Errorf("failed to add referrals: %w", err)
+	}
+
 	return userIDs, nil
+}
+
+// addReferrals создает реферальные связи для случайных пользователей
+func addReferrals(pool *pgxpool.Pool, userIDs []uuid.UUID) error {
+	// Выбираем 50 случайных пользователей, которые будут приглашать других
+	referrers := make([]uuid.UUID, 50)
+	for i := range referrers {
+		referrers[i] = userIDs[rand.Intn(len(userIDs))]
+	}
+
+	referralCount := 0
+
+	// Для каждого приглашающего создаем несколько приглашенных
+	for _, referrerID := range referrers {
+		// Каждый приглашающий приглашает от 3 до 10 человек
+		numReferrals := 3 + rand.Intn(8)
+
+		for j := 0; j < numReferrals; j++ {
+			// Выбираем случайного пользователя как приглашенного
+			referredID := userIDs[rand.Intn(len(userIDs))]
+
+			// Проверяем, чтобы не приглашать самого себя
+			if referredID == referrerID {
+				continue
+			}
+
+			// Проверяем, чтобы пользователь не был уже чьим-то рефералом
+			var exists bool
+			err := pool.QueryRow(context.Background(), `
+				SELECT EXISTS(SELECT 1 FROM user_referrals WHERE referred_id = $1)
+			`, referredID).Scan(&exists)
+
+			if err != nil {
+				return fmt.Errorf("failed to check referral existence: %w", err)
+			}
+
+			if exists {
+				continue // этот пользователь уже чей-то реферал
+			}
+
+			// Добавляем реферальную связь
+			_, err = pool.Exec(context.Background(), `
+				INSERT INTO user_referrals (referrer_id, referred_id, created_at)
+				VALUES ($1, $2, $3)
+			`, referrerID, referredID, time.Now().Add(-time.Duration(rand.Intn(365))*24*time.Hour))
+
+			if err != nil {
+				log.Printf("Warning: failed to insert referral: %v", err)
+			} else {
+				referralCount++
+			}
+		}
+	}
+
+	log.Printf("Added %d referral relationships", referralCount)
+
+	// Логируем статистику
+	if err := logReferralStats(pool); err != nil {
+		return fmt.Errorf("failed to log referral stats: %w", err)
+	}
+
+	return nil
+}
+
+// logReferralStats логирует статистику по рефералам
+func logReferralStats(pool *pgxpool.Pool) error {
+	// Топ пользователей по количеству приглашенных
+	rows, err := pool.Query(context.Background(), `
+		SELECT u.user_name, COUNT(ur.referred_id) as referral_count
+		FROM users u
+		JOIN user_referrals ur ON u.user_id = ur.referrer_id
+		GROUP BY u.user_id, u.user_name
+		ORDER BY referral_count DESC
+		LIMIT 10
+	`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	log.Println("Top referrers:")
+	for rows.Next() {
+		var userName string
+		var count int
+		if err := rows.Scan(&userName, &count); err != nil {
+			return err
+		}
+		log.Printf("  %s: %d referrals", userName, count)
+	}
+
+	return nil
 }
 
 // addServices добавляет сервисы
@@ -297,7 +425,7 @@ func genData() error {
 
 	log.Println("Successfully connected to PostgreSQL!")
 
-	// Очищаем существующие данные 
+	// Очищаем существующие данные
 	_, err = pool.Exec(context.Background(), `
 		TRUNCATE TABLE payments, promocodes, subscriptions, cards, users, sub_durations, services RESTART IDENTITY CASCADE
 	`)

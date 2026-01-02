@@ -7,3 +7,4 @@ COPY sub_durations TO '/tmp/sub_durations.csv' WITH CSV HEADER;
 COPY promocodes TO '/tmp/promocodes.csv' WITH CSV HEADER;
 COPY cards TO '/tmp/cards.csv' WITH CSV HEADER;
 COPY payments TO '/tmp/payments.csv' WITH CSV HEADER;
+COPY user_referrals TO '/tmp/user_referrals.csv' WITH CSV HEADER;

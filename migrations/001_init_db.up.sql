@@ -14,7 +14,7 @@ CREATE TABLE services (
 );
 
 CREATE TABLE subscriptions (
-    sub_id INTEGER GENERATED ALWAYS AS IDENTITY,
+    sub_id INTEGER GENERATED ALWAYS AS IDENTITY, 
     user_id UUID,
     service_id INTEGER,
     price INTEGER,
