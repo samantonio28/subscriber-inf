@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func MakeResponse(w http.ResponseWriter, statusCode int, v interface{}) {
+func MakeResponse(w http.ResponseWriter, statusCode int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	_ = json.NewEncoder(w).Encode(v)

@@ -1,3 +1,5 @@
 *.pdf
 generated
 logs
+internal/api/
+pkg/clients/

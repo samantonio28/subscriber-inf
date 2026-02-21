@@ -223,7 +223,7 @@ func (s *SubRepo) UpdateSub(ctx context.Context, sub domain.Subscription) error 
 	}
 
 	if subtype, err := domain.NewSubscriptionType(sub.SubType.String()); err == nil {
-		query += fmt.Sprintf(" sub_type = $%d", argPos)
+		query += fmt.Sprintf(" sub_type = $%d,", argPos)
 		args = append(args, subtype.String())
 		argPos++
 	}

@@ -113,7 +113,7 @@ func (h *Lab9Handler) GetMetrics(w http.ResponseWriter, r *http.Request) {
 	// Анализ метрик
 	analysis := h.analyzeMetrics()
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"metrics":  h.metrics,
 		"analysis": analysis,
 	}
@@ -310,9 +310,9 @@ func (h *Lab9Handler) recordMetric(operation, source string, duration time.Durat
 	}
 }
 
-func (h *Lab9Handler) analyzeMetrics() map[string]interface{} {
+func (h *Lab9Handler) analyzeMetrics() map[string]any {
 	if len(h.metrics) == 0 {
-		return map[string]interface{}{}
+		return map[string]any{}
 	}
 
 	var dbDurations, cacheDurations []time.Duration
@@ -330,7 +330,7 @@ func (h *Lab9Handler) analyzeMetrics() map[string]interface{} {
 		}
 	}
 
-	analysis := map[string]interface{}{
+	analysis := map[string]any{
 		"total_requests":  len(h.metrics),
 		"db_requests":     dbCount,
 		"cache_requests":  cacheCount,

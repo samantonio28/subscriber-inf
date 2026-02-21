@@ -36,12 +36,11 @@ ALTER TABLE subscriptions ADD CONSTRAINT check_price_positive
     CHECK (price > 0);
 ALTER TABLE subscriptions ADD CONSTRAINT valid_start_date 
     CHECK (
-        (sub_type = 'promocode' AND start_date IS NULL) OR
         EXTRACT(DAY FROM start_date) = 1
     );
 ALTER TABLE subscriptions ADD CONSTRAINT valid_end_date 
     CHECK (
-        (end_date IS NULL AND start_date IS NULL) OR 
+        (end_date IS NOT NULL) AND
         (EXTRACT(DAY FROM end_date) = 1 AND end_date >= start_date)
     );
 ALTER TABLE subscriptions ADD CONSTRAINT nn_sub_type CHECK (sub_type IS NOT NULL);

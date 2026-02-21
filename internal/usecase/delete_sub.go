@@ -25,7 +25,7 @@ func NewDeleteSubUC(subR domain.SubscriptionRepository, logger *logger.LogrusLog
 func (u *DeleteSubUC) DeleteSub(ctx context.Context, subId int) error {
 	err := u.subR.DeleteSub(ctx, domain.SubID(subId))
 	if err != nil {
-		u.logger.WithFields(map[string]interface{}{
+		u.logger.WithFields(map[string]any{
 			"subId": subId,
 			"error": err,
 		}).Logger.Error("failed to delete subscription")

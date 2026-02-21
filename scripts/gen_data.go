@@ -208,39 +208,15 @@ func addSubscriptions(pool *pgxpool.Pool, userIDs []uuid.UUID, serviceIDs []int)
 		startDate = time.Date(startDate.Year(), startDate.Month(), 1, 0, 0, 0, 0, time.UTC)
 
 		var endDate time.Time
-		if subType == "promocode" {
-			// Для промокодов может быть NULL
-			if rand.Float32() < 0.3 {
-				endDate = startDate.AddDate(0, rand.Intn(12)+1, 0)
-				endDate = time.Date(endDate.Year(), endDate.Month(), 1, 0, 0, 0, 0, time.UTC)
-			}
-		} else {
-			endDate = startDate.AddDate(0, rand.Intn(12)+1, 0)
-			endDate = time.Date(endDate.Year(), endDate.Month(), 1, 0, 0, 0, 0, time.UTC)
-		}
+		endDate = startDate.AddDate(0, rand.Intn(12)+1, 0)
+		endDate = time.Date(endDate.Year(), endDate.Month(), 1, 0, 0, 0, 0, time.UTC)
 
 		var subID int
-		var err error
-
-		if subType == "promocode" && endDate.IsZero() {
-			err = pool.QueryRow(context.Background(), `
-				INSERT INTO subscriptions (user_id, service_id, price, sub_type, start_date, end_date)
-				VALUES ($1, $2, $3, $4, NULL, NULL)
-				RETURNING sub_id
-			`, userID, serviceID, price, subType).Scan(&subID)
-		} else if endDate.IsZero() {
-			err = pool.QueryRow(context.Background(), `
-				INSERT INTO subscriptions (user_id, service_id, price, sub_type, start_date, end_date)
-				VALUES ($1, $2, $3, $4, $5, NULL)
-				RETURNING sub_id
-			`, userID, serviceID, price, subType, startDate).Scan(&subID)
-		} else {
-			err = pool.QueryRow(context.Background(), `
-				INSERT INTO subscriptions (user_id, service_id, price, sub_type, start_date, end_date)
-				VALUES ($1, $2, $3, $4, $5, $6)
-				RETURNING sub_id
-			`, userID, serviceID, price, subType, startDate, endDate).Scan(&subID)
-		}
+		err := pool.QueryRow(context.Background(), `
+			INSERT INTO subscriptions (user_id, service_id, price, sub_type, start_date, end_date)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING sub_id
+		`, userID, serviceID, price, subType, startDate, endDate).Scan(&subID)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to insert subscription %d: %w", i, err)

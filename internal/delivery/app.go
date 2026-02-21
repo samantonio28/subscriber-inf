@@ -9,6 +9,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/samantonio28/subscriber-inf/internal/api"
 	"github.com/samantonio28/subscriber-inf/internal/logger"
 	"github.com/samantonio28/subscriber-inf/internal/redis"
 	"github.com/samantonio28/subscriber-inf/internal/service"
@@ -45,29 +46,20 @@ func App(redisClient *redis.Client) {
 		return
 	}
 
-	r := mux.NewRouter()
-	r.Use(AccessLogMiddleware(logger))
-
-	handler, err := NewSubsHandler(repo, logger)
+	serverImpl, err := NewSubsServer(repo, logger)
 	if err != nil {
-		log.Fatal("Failed to create sub hander:", err)
+		log.Fatal("Failed to create server implementation:", err)
 	}
 
-	lab9Handler := NewLab9Handler(pool, logger, redisClient)
+	r := api.Handler(serverImpl)
 
-	r.Use(AccessLogMiddleware(logger))
-	r.HandleFunc("/subscriptions", handler.CreateSubscription).Methods("POST")
-	r.HandleFunc("/subscriptions", handler.GetSubscriptions).Methods("GET")
-	r.HandleFunc("/subscriptions/{id}", handler.DeleteSubscription).Methods("DELETE")
-	r.HandleFunc("/subscriptions/{id}", handler.GetSubscription).Methods("GET")
-	r.HandleFunc("/subscriptions/{id}", handler.UpdateSubscription).Methods("PUT")
-	r.HandleFunc("/total_costs", handler.GetTotalCosts).Methods("POST")
-
-	r.HandleFunc("/lab9/{num:[1-7]}", lab9Handler.Lab9Handler).Methods("GET", "POST")
+	rWithMiddleware := mux.NewRouter()
+	rWithMiddleware.Use(AccessLogMiddleware(logger))
+	rWithMiddleware.PathPrefix("/").Handler(r)
 
 	server := http.Server{
 		Addr:         ":8080",
-		Handler:      r,
+		Handler:      rWithMiddleware,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}

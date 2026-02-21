@@ -14,16 +14,14 @@ import (
 )
 
 type Lab6Handler struct {
-	db          *pgxpool.Pool
-	logger      *logger.LogrusLogger
-	subsHandler *SubsHandler
+	db     *pgxpool.Pool
+	logger *logger.LogrusLogger
 }
 
-func NewLab6Handler(db *pgxpool.Pool, logger *logger.LogrusLogger, subsHandler *SubsHandler) *Lab6Handler {
+func NewLab6Handler(db *pgxpool.Pool, logger *logger.LogrusLogger) *Lab6Handler {
 	return &Lab6Handler{
-		db:          db,
-		logger:      logger,
-		subsHandler: subsHandler,
+		db:     db,
+		logger: logger,
 	}
 }
 
@@ -39,7 +37,7 @@ func (h *Lab6Handler) ScalarQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.MakeResponse(w, http.StatusOK, map[string]interface{}{
+	utils.MakeResponse(w, http.StatusOK, map[string]any{
 		"query_type":  "scalar",
 		"result":      result,
 		"description": "Количество подписок дороже 1000",
@@ -80,7 +78,7 @@ func (h *Lab6Handler) JoinQuery(w http.ResponseWriter, r *http.Request) {
 		results = append(results, res)
 	}
 
-	utils.MakeResponse(w, http.StatusOK, map[string]interface{}{
+	utils.MakeResponse(w, http.StatusOK, map[string]any{
 		"query_type": "join",
 		"results":    results,
 	})
@@ -135,7 +133,7 @@ func (h *Lab6Handler) CTEQuery(w http.ResponseWriter, r *http.Request) {
 		results = append(results, res)
 	}
 
-	utils.MakeResponse(w, http.StatusOK, map[string]interface{}{
+	utils.MakeResponse(w, http.StatusOK, map[string]any{
 		"query_type": "cte_window",
 		"results":    results,
 	})
@@ -176,7 +174,7 @@ func (h *Lab6Handler) MetadataQuery(w http.ResponseWriter, r *http.Request) {
 		results = append(results, res)
 	}
 
-	utils.MakeResponse(w, http.StatusOK, map[string]interface{}{
+	utils.MakeResponse(w, http.StatusOK, map[string]any{
 		"query_type": "metadata",
 		"results":    results,
 	})
@@ -230,7 +228,7 @@ func (h *Lab6Handler) ScalarFunction(w http.ResponseWriter, r *http.Request) {
 		serviceName = "Unknown"
 	}
 
-	utils.MakeResponse(w, http.StatusOK, map[string]interface{}{
+	utils.MakeResponse(w, http.StatusOK, map[string]any{
 		"query_type":    "scalar_function",
 		"service_id":    serviceID,
 		"service_name":  serviceName,
@@ -309,7 +307,7 @@ func (h *Lab6Handler) TableFunction(w http.ResponseWriter, r *http.Request) {
 		results = append(results, res)
 	}
 
-	utils.MakeResponse(w, http.StatusOK, map[string]interface{}{
+	utils.MakeResponse(w, http.StatusOK, map[string]any{
 		"query_type":    "table_function",
 		"service_id":    serviceID,
 		"service_name":  serviceName,
@@ -415,7 +413,7 @@ func (h *Lab6Handler) StoredProcedure(w http.ResponseWriter, r *http.Request) {
 		userBalances = append(userBalances, user)
 	}
 
-	utils.MakeResponse(w, http.StatusOK, map[string]interface{}{
+	utils.MakeResponse(w, http.StatusOK, map[string]any{
 		"query_type":       "stored_procedure",
 		"procedure_name":   "update_balances_with_bonus",
 		"description":      "Начисление бонуса 5% на баланс (макс. 100)",
@@ -449,7 +447,7 @@ func (h *Lab6Handler) SystemFunction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.MakeResponse(w, http.StatusOK, map[string]interface{}{
+	utils.MakeResponse(w, http.StatusOK, map[string]any{
 		"query_type":         "system_function",
 		"database":           dbName,
 		"user":               userName,
@@ -570,7 +568,7 @@ func (h *Lab6Handler) ShowAuditTable(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		utils.MakeResponse(w, http.StatusOK, map[string]interface{}{
+		utils.MakeResponse(w, http.StatusOK, map[string]any{
 			"table_name": "subscription_audit",
 			"records":    []AuditRecord{},
 			"count":      0,
@@ -614,9 +612,9 @@ func (h *Lab6Handler) ShowAuditTable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Форматируем даты для красивого вывода
-	formattedResults := make([]map[string]interface{}, len(results))
+	formattedResults := make([]map[string]any, len(results))
 	for i, record := range results {
-		formattedResults[i] = map[string]interface{}{
+		formattedResults[i] = map[string]any{
 			"audit_id":           record.AuditID,
 			"sub_id":             record.SubID,
 			"action_type":        record.ActionType,
@@ -628,11 +626,11 @@ func (h *Lab6Handler) ShowAuditTable(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	utils.MakeResponse(w, http.StatusOK, map[string]interface{}{
+	utils.MakeResponse(w, http.StatusOK, map[string]any{
 		"table_name": "subscription_audit",
 		"records":    formattedResults,
 		"count":      len(results),
-		"summary": map[string]interface{}{
+		"summary": map[string]any{
 			"total_records": len(results),
 			"actions_count": h.countActions(results),
 			"last_update":   h.getLastUpdate(results),
@@ -763,9 +761,9 @@ func (h *Lab6Handler) GetNetflixPromocodes(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Форматируем даты для красивого вывода
-	formattedResults := make([]map[string]interface{}, len(results))
+	formattedResults := make([]map[string]any, len(results))
 	for i, record := range results {
-		formattedResults[i] = map[string]interface{}{
+		formattedResults[i] = map[string]any{
 			"service_name":      record.ServiceName,
 			"user_name":         record.UserName,
 			"user_email":        record.UserEmail,
@@ -778,11 +776,11 @@ func (h *Lab6Handler) GetNetflixPromocodes(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	utils.MakeResponse(w, http.StatusOK, map[string]interface{}{
+	utils.MakeResponse(w, http.StatusOK, map[string]any{
 		"query_type":  "netflix_promocodes",
 		"description": "Действительные промокоды Netflix для пользователей с истекающими подписками (в течение 70 дней)",
 		"results":     formattedResults,
-		"summary": map[string]interface{}{
+		"summary": map[string]any{
 			"total_promocodes": len(results),
 			"users_at_risk":    h.countUniqueUsers(results),
 			"urgency_stats":    h.getUrgencyStats(results),

@@ -30,7 +30,7 @@ func NewRedisClient(addr string) (*Client, error) {
 	return &Client{client: client}, nil
 }
 
-func (c *Client) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+func (c *Client) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	return c.client.Set(ctx, key, value, expiration).Err()
 }
 
