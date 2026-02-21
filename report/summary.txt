@@ -1,8 +1,0 @@
-SELECT
-    s.service_name,
-    COUNT(sub.sub_id) as active_subscriptions
-FROM services s
-LEFT JOIN subscriptions sub ON s.service_id = sub.service_id 
-    AND sub.end_date >= CURRENT_DATE
-GROUP BY s.service_name
-ORDER BY active_subscriptions DESC
