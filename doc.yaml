@@ -2,11 +2,13 @@ openapi: 3.0.4
 
 info:
   title: Subscriber Inf - OpenAPI 3.0
-  version: 1.0.2
+  version: 1.0.5
 
 tags:
 - name: subscriptions
   description: subscriptions actions
+- name: lab9
+  description: lab9 actions
 
 paths:
   /subscriptions:
@@ -26,15 +28,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponse"
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "new sub_id: 123"
         '400':
           description: Invalid input
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponse"
-        '409':
-          description: Already exists
           content:
             application/json:
               schema:
@@ -66,22 +66,30 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Subscription"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         '500':
           description: Server error
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "no memory :)"
+                $ref: "#/components/schemas/ApiResponse"
   /subscriptions/{id}:
     get:
       tags:
       - subscriptions
       summary: Get subscription
       description: Get subscription by sub_id
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
         '200':
           description: Successful operation
@@ -89,8 +97,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Subscription"
-        '403':
-          description: No access
+        '400':
+          description: Invalid input
           content:
             application/json:
               schema:
@@ -112,6 +120,12 @@ paths:
       - subscriptions
       summary: Update subscription
       description: Update description by sub_id
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         content:
           application/json:
@@ -121,6 +135,16 @@ paths:
       responses:
         '200':
           description: Successfully updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "subscription updated"
+        '400':
+          description: Invalid input
           content:
             application/json:
               schema:
@@ -142,19 +166,25 @@ paths:
       - subscriptions
       summary: Delete subscription
       description: Delete subscription by sub_id
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                sub_id:
-                  type: integer
-                  format: int64
+      parameters:
+      - name: id
+        in: path
         required: true
+        schema:
+          type: integer
       responses:
         '204':
-          description: Succesful deletion
+          description: Successful deletion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "nice"
+        '400':
+          description: Invalid input
           content:
             application/json:
               schema:
@@ -201,10 +231,9 @@ paths:
                     sub_type:
                       $ref: "#/components/schemas/SubscriptionType"
                   required:
-                  - user_id
+                  - service_name
               required:
               - start_date
-              - service_name
               - filter
       responses:
         '200':
@@ -224,8 +253,101 @@ paths:
                     items:
                       type: integer
                       format: int64
-        '204':
-          description: No data
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+  /lab9/1:
+    get:
+      tags:
+      - lab9
+      summary: Get service stats from database
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceStats"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /lab9/2:
+    get:
+      tags:
+      - lab9
+      summary: Get service stats from cache
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceStats"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /lab9/3:
+    get:
+      tags:
+      - lab9
+      summary: Get execution metrics
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  metrics:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ExecutionMetric"
+                  analysis:
+                    type: object
+                    properties:
+                      total_requests:
+                        type: integer
+                      db_requests:
+                        type: integer
+                      cache_requests:
+                        type: integer
+                      cache_hit_ratio:
+                        type: number
+                        format: float
+                      avg_db_duration:
+                        type: string
+                      avg_cache_duration:
+                        type: string
+  /lab9/4:
+    post:
+      tags:
+      - lab9
+      summary: Start performance test
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestScenario"
+        required: true
+      responses:
+        '200':
+          description: Test started
           content:
             application/json:
               schema:
@@ -233,13 +355,69 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: "change period or user_id or service_name"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /lab9/5:
+    get:
+      tags:
+      - lab9
+      summary: Stop performance test
+      responses:
+        '200':
+          description: Test stopped
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+  /lab9/6:
+    get:
+      tags:
+      - lab9
+      summary: Add test data
+      responses:
+        '200':
+          description: Test data added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
         '500':
           description: Server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponse'
+                $ref: "#/components/schemas/ApiResponse"
+  /lab9/7:
+    get:
+      tags:
+      - lab9
+      summary: Clear test data
+      responses:
+        '200':
+          description: Test data cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
 components:
   schemas:
@@ -270,11 +448,55 @@ components:
         start_date:
           type: string
           example: "07-2025"
+          description: "Date in format MM-YYYY"
         end_date:
           type: string
           example: "08-2025"
+          description: "Date in format MM-YYYY"
       required:
       - service_name
       - price
       - user_id
       - start_date
+    ServiceStats:
+      type: object
+      properties:
+        service_name:
+          type: string
+        total_subscriptions:
+          type: integer
+        total_revenue:
+          type: integer
+        avg_subscription_cost:
+          type: number
+          format: float
+        execution_time:
+          type: string
+        source:
+          type: string
+    ExecutionMetric:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        operation:
+          type: string
+        source:
+          type: string
+        duration:
+          type: string
+        data_changed:
+          type: boolean
+    TestScenario:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        interval:
+          type: string
+        data_change:
+          type: string
+          enum: [ none, add, delete, update ]

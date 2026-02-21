@@ -13,37 +13,6 @@ import (
 	"github.com/samantonio28/subscriber-inf/pkg/config"
 )
 
-// addUsers добавляет 1000 пользователей и возвращает их UUID
-// func addUsers(pool *pgxpool.Pool) ([]uuid.UUID, error) {
-// 	userIDs := make([]uuid.UUID, 0, 1000)
-
-// 	for i := range 1000 {
-// 		userID := uuid.New()
-// 		userIDs = append(userIDs, userID)
-
-// 		email := fake.EmailAddress()
-// 		password := fake.Password(8, 30, true, true, true)
-// 		userName := fake.UserName()
-// 		if len(userName) > 20 {
-// 			userName = userName[:20]
-// 		}
-// 		age := 18 + rand.Intn(50)   // возраст от 18 до 67
-// 		balance := rand.Intn(10000) // баланс от 0 до 9999
-
-// 		_, err := pool.Exec(context.Background(), `
-// 			INSERT INTO users (user_id, email, password, user_name, age, balance)
-// 			VALUES ($1, $2, $3, $4, $5, $6)
-// 		`, userID, email, password, userName, age, balance)
-
-// 		if err != nil {
-// 			return nil, fmt.Errorf("failed to insert user %d: %w", i, err)
-// 		}
-// 	}
-
-// 	log.Printf("Added %d users", len(userIDs))
-// 	return userIDs, nil
-// }
-
 // addUsers добавляет 1000 пользователей и создает реферальные связи
 func addUsers(pool *pgxpool.Pool) ([]uuid.UUID, error) {
 	userIDs := make([]uuid.UUID, 0, 1000)
