@@ -20,6 +20,7 @@ CREATE TABLE subscription_plans (
     plan_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     service_id INTEGER NOT NULL REFERENCES services(service_id),
     duration_days INTEGER NOT NULL CHECK (duration_days > 0),
+    name VARCHAR(255) NOT NULL,
     price INTEGER NOT NULL CHECK (price > 0),
     UNIQUE (service_id, duration_days, price) -- optional
 );

@@ -141,6 +141,20 @@ func logReferralStats(pool *pgxpool.Pool) error {
 	return nil
 }
 
+// generatePlanName создает название плана на основе имени сервиса и длительности
+func generatePlanName(serviceName string, durationDays int) string {
+	switch {
+	case durationDays <= 30:
+		return serviceName + " M"
+	case durationDays <= 90:
+		return serviceName + " Q"
+	case durationDays <= 365:
+		return serviceName + " A"
+	default:
+		return serviceName + " C"
+	}
+}
+
 // addServices добавляет сервисы
 func addServices(pool *pgxpool.Pool) ([]int, error) {
 	services := []struct {
@@ -185,6 +199,17 @@ func addServices(pool *pgxpool.Pool) ([]int, error) {
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to insert sub duration for service %d: %w", serviceID, err)
+		}
+
+		// Добавляем план подписки
+		price := 100 + rand.Intn(4900) // цена от 100 до 4999
+		planName := generatePlanName(service.name, service.duration)
+		_, err = pool.Exec(context.Background(), `
+			INSERT INTO subscription_plans (service_id, duration_days, name, price)
+			VALUES ($1, $2, $3, $4)
+		`, serviceID, service.duration, planName, price)
+		if err != nil {
+			return nil, fmt.Errorf("failed to insert subscription plan for service %d: %w", serviceID, err)
 		}
 	}
 
@@ -253,13 +278,39 @@ func addPromocodes(pool *pgxpool.Pool, serviceIDs []int, _ []int) error {
 
 		serviceID := serviceIDs[rand.Intn(len(serviceIDs))]
 		promocode := fake.CharactersN(10)
-		durationDays := 30 * (rand.Intn(12) + 1)              // от 1 до 12 месяцев
 		expiresAt := time.Now().AddDate(0, rand.Intn(6)+1, 0) // истекает через 1-6 месяцев
+		createdAt := time.Now().Add(-time.Duration(rand.Intn(365)) * 24 * time.Hour)
+		discount := rand.Intn(101) // 0-100
+		maxUses := 1 + rand.Intn(10) // 1-10
+		curUses := rand.Intn(maxUses + 1) // 0..maxUses
+		var status string
+		if curUses == maxUses {
+			status = "USED"
+		} else if rand.Float32() < 0.1 {
+			status = "DISABLED"
+		} else {
+			status = "ACTIVE"
+		}
+		durationDays := rand.Intn(365) + 1 // 1-365 дней, можно NULL, но зададим значение
 
-		_, err := pool.Exec(context.Background(), `
-			INSERT INTO promocodes (promocode_id, service_id, promocode, sub_duration_days, sub_id, expires_at)
-			VALUES ($1, $2, $3, $4, $5, $6)
-		`, i+1, serviceID, promocode, durationDays, subID, expiresAt)
+		// Получаем plan_id для данного сервиса
+		var planID int
+		err := pool.QueryRow(context.Background(), `
+			SELECT plan_id FROM subscription_plans WHERE service_id = $1 LIMIT 1
+		`, serviceID).Scan(&planID)
+		if err != nil {
+			// Если план не найден, пропускаем или используем дефолтный? Пропустим с логом.
+			log.Printf("Warning: no plan found for service %d, skipping promocode", serviceID)
+			continue
+		}
+
+		_, err = pool.Exec(context.Background(), `
+			INSERT INTO promocodes (
+				promocode_id, service_id, promocode, sub_id, expires_at,
+				created_at, discount, max_uses, cur_uses, status, duration_days, plan_id
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		`, i+1, serviceID, promocode, subID, expiresAt,
+			createdAt, discount, maxUses, curUses, status, durationDays, planID)
 
 		if err != nil {
 			return fmt.Errorf("failed to insert promocode %d: %w", i, err)
