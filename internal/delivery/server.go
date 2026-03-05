@@ -23,10 +23,24 @@ type SubsServer struct {
 	GetSubsUC    usecase.GetSubsUC
 	TotalCostsUC usecase.TotalCostsUC
 	UpdateSubUC  usecase.UpdateSubUC
-	logger       *logger.LogrusLogger
+	// Promocode usecases
+	CreatePromocodeUC usecase.CreatePromocodeUC
+	DeletePromocodeUC usecase.DeletePromocodeUC
+	GetPromocodeUC    usecase.GetPromocodeUC
+	// Subscription plan usecases
+	CreateSubscriptionPlanUC usecase.CreateSubscriptionPlanUC
+	GetSubscriptionPlanUC    usecase.GetSubscriptionPlanUC
+	UpdateSubscriptionPlanUC usecase.UpdateSubscriptionPlanUC
+	DeleteSubscriptionPlanUC usecase.DeleteSubscriptionPlanUC
+	logger                   *logger.LogrusLogger
 }
 
-func NewSubsServer(repo domain.SubscriptionRepository, logger *logger.LogrusLogger) (*SubsServer, error) {
+func NewSubsServer(
+	repo domain.SubscriptionRepository,
+	promoRepo domain.PromocodeRepository,
+	planRepo domain.SubscriptionPlanRepository,
+	logger *logger.LogrusLogger,
+) (*SubsServer, error) {
 	createSubUC, err := usecase.NewCreateSubUC(repo, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CreateSubUC: %w", err)
@@ -51,6 +65,39 @@ func NewSubsServer(repo domain.SubscriptionRepository, logger *logger.LogrusLogg
 	if err != nil {
 		return nil, fmt.Errorf("failed to create UpdateSubUC: %w", err)
 	}
+
+	// Promocode usecases
+	createPromoUC, err := usecase.NewCreatePromocodeUC(promoRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CreatePromocodeUC: %w", err)
+	}
+	deletePromoUC, err := usecase.NewDeletePromocodeUC(promoRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create DeletePromocodeUC: %w", err)
+	}
+	getPromoUC, err := usecase.NewGetPromocodeUC(promoRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GetPromocodeUC: %w", err)
+	}
+
+	// Subscription plan usecases
+	createPlanUC, err := usecase.NewCreateSubscriptionPlanUC(planRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CreateSubscriptionPlanUC: %w", err)
+	}
+	getPlanUC, err := usecase.NewGetSubscriptionPlanUC(planRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GetSubscriptionPlanUC: %w", err)
+	}
+	updatePlanUC, err := usecase.NewUpdateSubscriptionPlanUC(planRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create UpdateSubscriptionPlanUC: %w", err)
+	}
+	deletePlanUC, err := usecase.NewDeleteSubscriptionPlanUC(planRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create DeleteSubscriptionPlanUC: %w", err)
+	}
+
 	return &SubsServer{
 		CreateSubUC:  *createSubUC,
 		DeleteSubUC:  *deleteSubUC,
@@ -58,7 +105,16 @@ func NewSubsServer(repo domain.SubscriptionRepository, logger *logger.LogrusLogg
 		GetSubsUC:    *getSubsUC,
 		TotalCostsUC: *totalCostsUC,
 		UpdateSubUC:  *updateSubUC,
-		logger:       logger,
+		// Promocode
+		CreatePromocodeUC: *createPromoUC,
+		DeletePromocodeUC: *deletePromoUC,
+		GetPromocodeUC:    *getPromoUC,
+		// Subscription plan
+		CreateSubscriptionPlanUC: *createPlanUC,
+		GetSubscriptionPlanUC:    *getPlanUC,
+		UpdateSubscriptionPlanUC: *updatePlanUC,
+		DeleteSubscriptionPlanUC: *deletePlanUC,
+		logger:                   logger,
 	}, nil
 }
 
@@ -160,7 +216,7 @@ func (s *SubsServer) PostSubscriptions(w http.ResponseWriter, r *http.Request) {
 func (s *SubsServer) DeleteSubscriptionsId(w http.ResponseWriter, r *http.Request, id int) {
 	err := s.DeleteSubUC.DeleteSub(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, fmt.Errorf("no subs deleted")) {
+		if errors.Is(err, domain.ErrNoSubscriptionDeleted) {
 			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
 				"message": "subscription not found",
 			})
@@ -343,4 +399,250 @@ func (s *SubsServer) PostTotalCosts(w http.ResponseWriter, r *http.Request) {
 		"sub_ids":   int64SubIds,
 	}
 	utils.MakeResponse(w, http.StatusOK, response)
+}
+// Promocode handlers
+
+func (s *SubsServer) PostPromocodes(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ServiceID    int     `json:"service_id"`
+		Value        string  `json:"value"`
+		PlanID       *int    `json:"plan_id,omitempty"`
+		SubID        *int    `json:"sub_id,omitempty"`
+		ExpiresAt    *string `json:"expires_at,omitempty"`
+		Discount     int     `json:"discount"`
+		MaxUses      int     `json:"max_uses"`
+		DurationDays int     `json:"duration_days"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid JSON",
+		})
+		return
+	}
+
+	var expiresAt time.Time
+	if req.ExpiresAt != nil {
+		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
+		if err != nil {
+			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+				"error": "invalid expires_at format, use RFC3339",
+			})
+			return
+		}
+		expiresAt = t
+	}
+
+	input := usecase.CreatePromocodeInput{
+		ServiceID:    req.ServiceID,
+		Value:        req.Value,
+		PlanID:       req.PlanID,
+		SubID:        req.SubID,
+		ExpiresAt:    expiresAt,
+		Discount:     req.Discount,
+		MaxUses:      req.MaxUses,
+		DurationDays: req.DurationDays,
+	}
+
+	id, err := s.CreatePromocodeUC.Create(r.Context(), input)
+	if err != nil {
+		s.logger.Error("failed to create promocode", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to create promocode: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusCreated, map[string]any{
+		"promocode_id": id,
+		"message":      "promocode created successfully",
+	})
+}
+
+func (s *SubsServer) GetPromocodes(w http.ResponseWriter, r *http.Request, params api.GetPromocodesParams) {
+	// For simplicity, return not implemented; can be extended later
+	utils.MakeResponse(w, http.StatusNotImplemented, map[string]string{
+		"message": "filtered list not implemented yet",
+	})
+}
+
+func (s *SubsServer) GetPromocodesId(w http.ResponseWriter, r *http.Request, id int) {
+	promocode, err := s.GetPromocodeUC.ByID(r.Context(), domain.PromocodeID(id))
+	if err != nil {
+		if errors.Is(err, domain.ErrPromocodeNotFound) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"error": "promocode not found",
+			})
+			return
+		}
+		s.logger.Error("failed to get promocode", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to get promocode: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusOK, promocode)
+}
+
+func (s *SubsServer) DeletePromocodesId(w http.ResponseWriter, r *http.Request, id int) {
+	err := s.DeletePromocodeUC.Delete(r.Context(), domain.PromocodeID(id))
+	if err != nil {
+		if errors.Is(err, domain.ErrPromocodeNotFound) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"error": "promocode not found",
+			})
+			return
+		}
+		s.logger.Error("failed to delete promocode", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to delete promocode: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusNoContent, nil)
+}
+
+func (s *SubsServer) GetPromocodesCodeCode(w http.ResponseWriter, r *http.Request, code string) {
+	promocode, err := s.GetPromocodeUC.ByCode(r.Context(), code)
+	if err != nil {
+		if errors.Is(err, domain.ErrPromocodeNotFound) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"error": "promocode not found",
+			})
+			return
+		}
+		s.logger.Error("failed to get promocode", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to get promocode: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusOK, promocode)
+}
+
+// Subscription plan handlers
+
+func (s *SubsServer) PostSubscriptionPlans(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ServiceID    int    `json:"service_id"`
+		Name         string `json:"name"`
+		DurationDays int    `json:"duration_days"`
+		Price        int64  `json:"price"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid JSON",
+		})
+		return
+	}
+
+	input := usecase.CreateSubscriptionPlanInput{
+		ServiceID:    req.ServiceID,
+		Name:         req.Name,
+		DurationDays: req.DurationDays,
+		Price:        int(req.Price),
+	}
+
+	id, err := s.CreateSubscriptionPlanUC.Create(r.Context(), input)
+	if err != nil {
+		s.logger.Error("failed to create subscription plan", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to create subscription plan: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusCreated, map[string]any{
+		"plan_id": id,
+		"message": "subscription plan created successfully",
+	})
+}
+
+func (s *SubsServer) GetSubscriptionPlans(w http.ResponseWriter, r *http.Request, params api.GetSubscriptionPlansParams) {
+	// For simplicity, return not implemented; can be extended later
+	utils.MakeResponse(w, http.StatusNotImplemented, map[string]string{
+		"message": "filtered list not implemented yet",
+	})
+}
+
+func (s *SubsServer) GetSubscriptionPlansId(w http.ResponseWriter, r *http.Request, id int) {
+	plan, err := s.GetSubscriptionPlanUC.ByID(r.Context(), domain.PlanID(id))
+	if err != nil {
+		if errors.Is(err, domain.ErrSubscriptionPlanNotFound) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"error": "subscription plan not found",
+			})
+			return
+		}
+		s.logger.Error("failed to get subscription plan", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to get subscription plan: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusOK, plan)
+}
+
+func (s *SubsServer) PutSubscriptionPlansId(w http.ResponseWriter, r *http.Request, id int) {
+	var req struct {
+		ServiceID    int    `json:"service_id"`
+		Name         string `json:"name"`
+		DurationDays int    `json:"duration_days"`
+		Price        int64  `json:"price"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid JSON",
+		})
+		return
+	}
+
+	input := usecase.UpdateSubscriptionPlanInput{
+		ID:           domain.PlanID(id),
+		ServiceID:    req.ServiceID,
+		Name:         req.Name,
+		DurationDays: req.DurationDays,
+		Price:        int(req.Price),
+	}
+
+	err := s.UpdateSubscriptionPlanUC.Update(r.Context(), input)
+	if err != nil {
+		if errors.Is(err, domain.ErrSubscriptionPlanNotFound) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"error": "subscription plan not found",
+			})
+			return
+		}
+		s.logger.Error("failed to update subscription plan", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to update subscription plan: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusOK, map[string]string{
+		"message": "subscription plan updated successfully",
+	})
+}
+
+func (s *SubsServer) DeleteSubscriptionPlansId(w http.ResponseWriter, r *http.Request, id int) {
+	err := s.DeleteSubscriptionPlanUC.Delete(r.Context(), domain.PlanID(id))
+	if err != nil {
+		if errors.Is(err, domain.ErrSubscriptionPlanNotFound) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"error": "subscription plan not found",
+			})
+			return
+		}
+		s.logger.Error("failed to delete subscription plan", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to delete subscription plan: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusNoContent, nil)
 }

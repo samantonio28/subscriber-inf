@@ -275,7 +275,7 @@ func (s *SubRepo) DeleteSub(ctx context.Context, subId domain.SubID) error {
 		return err
 	}
 	if r := res.RowsAffected(); r == 0 {
-		return fmt.Errorf("no subs deleted")
+		return domain.ErrNoSubscriptionDeleted
 	}
 	return nil
 }

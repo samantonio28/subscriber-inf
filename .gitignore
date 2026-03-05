@@ -3,3 +3,4 @@ generated
 logs
 internal/api/
 pkg/clients/
+gitlab_repo

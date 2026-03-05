@@ -1,12 +1,17 @@
+
 openapi: 3.0.4
 
 info:
   title: Subscriber Inf - OpenAPI 3.0
-  version: 1.0.5
+  version: 1.1.0
 
 tags:
 - name: subscriptions
   description: subscriptions actions
+- name: promocodes
+  description: Promocodes management
+- name: subscription-plans
+  description: Subscription plans (templates) management
 
 paths:
   /subscriptions:
@@ -263,6 +268,323 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponse'
+  /promocodes:
+    post:
+      tags:
+      - promocodes
+      summary: Create a new promocode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Promocode'
+        required: true
+      responses:
+        '201':
+          description: Promocode created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  promocode_id:
+                    type: integer
+                    example: 1
+                  message:
+                    type: string
+                    example: "promocode created successfully"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    get:
+      tags:
+      - promocodes
+      summary: Get all promocodes (optional filtering)
+      parameters:
+      - name: service_id
+        in: query
+        description: Filter by service ID
+        required: false
+        schema:
+          type: integer
+      - name: status
+        in: query
+        description: Filter by status
+        required: false
+        schema:
+          $ref: '#/components/schemas/PromocodeStatus'
+      responses:
+        '200':
+          description: List of promocodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Promocode'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /promocodes/{id}:
+    get:
+      tags:
+      - promocodes
+      summary: Get promocode by ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Promocode found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Promocode'
+        '404':
+          description: Promocode not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    delete:
+      tags:
+      - promocodes
+      summary: Delete promocode by ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '204':
+          description: Promocode deleted
+        '404':
+          description: Promocode not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /promocodes/code/{code}:
+    get:
+      tags:
+      - promocodes
+      summary: Get promocode by its code value
+      parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Promocode found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Promocode'
+        '404':
+          description: Promocode not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /subscription-plans:
+    post:
+      tags:
+      - subscription-plans
+      summary: Create a new subscription plan (template)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionPlan'
+        required: true
+      responses:
+        '201':
+          description: Subscription plan created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plan_id:
+                    type: integer
+                    example: 1
+                  message:
+                    type: string
+                    example: "subscription plan created successfully"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    get:
+      tags:
+      - subscription-plans
+      summary: Get all subscription plans (optional filtering)
+      parameters:
+      - name: service_id
+        in: query
+        description: Filter by service ID
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: List of subscription plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubscriptionPlan'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /subscription-plans/{id}:
+    get:
+      tags:
+      - subscription-plans
+      summary: Get subscription plan by ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Subscription plan found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '404':
+          description: Subscription plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    put:
+      tags:
+      - subscription-plans
+      summary: Update subscription plan
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionPlan'
+        required: true
+      responses:
+        '200':
+          description: Subscription plan updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "subscription plan updated successfully"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '404':
+          description: Subscription plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    delete:
+      tags:
+      - subscription-plans
+      summary: Delete subscription plan by ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '204':
+          description: Subscription plan deleted
+        '404':
+          description: Subscription plan not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
 components:
   schemas:
@@ -345,3 +667,75 @@ components:
         data_change:
           type: string
           enum: [ none, add, delete, update ]
+    PromocodeStatus:
+      type: string
+      enum: [ ACTIVE, USED, DISABLED ]
+      default: ACTIVE
+    Promocode:
+      type: object
+      properties:
+        promocode_id:
+          type: integer
+          example: 1
+        service_id:
+          type: integer
+          example: 5
+        plan_id:
+          type: integer
+          nullable: true
+          example: 10
+        sub_id:
+          type: integer
+          nullable: true
+          example: 100
+        value:
+          type: string
+          example: "SUMMER2025"
+        expires_at:
+          type: string
+          format: date-time
+          example: "2025-12-31T23:59:59Z"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-01T00:00:00Z"
+        discount:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 20
+          description: Discount percentage (0-100)
+        max_uses:
+          type: integer
+          minimum: 1
+          example: 100
+        cur_uses:
+          type: integer
+          minimum: 0
+          example: 5
+        status:
+          $ref: '#/components/schemas/PromocodeStatus'
+        duration_days:
+          type: integer
+          minimum: 1
+          example: 30
+          description: Duration in days used to calculate expires_at if not provided
+    SubscriptionPlan:
+      type: object
+      properties:
+        plan_id:
+          type: integer
+          example: 1
+        service_id:
+          type: integer
+          example: 5
+        name:
+          type: string
+          example: "Premium Monthly"
+        duration_days:
+          type: integer
+          example: 30
+        price:
+          type: integer
+          format: int64
+          example: 2999

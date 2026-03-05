@@ -14,9 +14,9 @@ type SubscriptionType struct {
 }
 
 var (
-	Usual     = SubscriptionType{"usual"}
-	Promocode = SubscriptionType{"promocode"}
-	Family    = SubscriptionType{"family"}
+	SubTypeUsual     = SubscriptionType{"usual"}
+	SubTypePromocode = SubscriptionType{"promocode"}
+	SubTypeFamily    = SubscriptionType{"family"}
 )
 
 func (t *SubscriptionType) String() string {
@@ -26,11 +26,11 @@ func (t *SubscriptionType) String() string {
 func NewSubscriptionType(s string) (*SubscriptionType, error) {
 	switch s {
 	case "usual", "":
-		return &Usual, nil
+		return &SubTypeUsual, nil
 	case "promocode":
-		return &Promocode, nil
+		return &SubTypePromocode, nil
 	case "family":
-		return &Family, nil
+		return &SubTypeFamily, nil
 	default:
 		return nil, fmt.Errorf(
 			"%s: bad subscription type: not matches 'usual', 'promocode', 'family', got %s",

@@ -40,13 +40,23 @@ func App(redisClient *redis.Client) {
 		log.Fatal("Failed to create sub repo:", err)
 	}
 
+	promoRepo, err := service.NewPromocodeRepo(pool)
+	if err != nil {
+		log.Fatal("Failed to create promocode repo:", err)
+	}
+
+	planRepo, err := service.NewSubscriptionPlanRepo(pool)
+	if err != nil {
+		log.Fatal("Failed to create subscription plan repo:", err)
+	}
+
 	logger, err := logger.NewLogrusLogger("logs/access.log")
 	if err != nil {
 		fmt.Printf("Failed to initialize logger: %v\n", err)
 		return
 	}
 
-	serverImpl, err := NewSubsServer(repo, logger)
+	serverImpl, err := NewSubsServer(repo, promoRepo, planRepo, logger)
 	if err != nil {
 		log.Fatal("Failed to create server implementation:", err)
 	}
