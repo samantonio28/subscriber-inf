@@ -9,10 +9,10 @@ import (
 
 type UpdateSubscriptionPlanUC struct {
 	planRepo domain.SubscriptionPlanRepository
-	logger   *logger.LogrusLogger
+	logger   logger.Logger
 }
 
-func NewUpdateSubscriptionPlanUC(planRepo domain.SubscriptionPlanRepository, logger *logger.LogrusLogger) (*UpdateSubscriptionPlanUC, error) {
+func NewUpdateSubscriptionPlanUC(planRepo domain.SubscriptionPlanRepository, logger logger.Logger) (*UpdateSubscriptionPlanUC, error) {
 	if planRepo == nil {
 		return nil, domain.ErrInvalidSubRepo
 	}

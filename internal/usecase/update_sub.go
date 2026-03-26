@@ -9,10 +9,10 @@ import (
 
 type UpdateSubUC struct {
 	subR   domain.SubscriptionRepository
-	logger *logger.LogrusLogger
+	logger logger.Logger
 }
 
-func NewUpdateSubUC(subR domain.SubscriptionRepository, logger *logger.LogrusLogger) (*UpdateSubUC, error) {
+func NewUpdateSubUC(subR domain.SubscriptionRepository, logger logger.Logger) (*UpdateSubUC, error) {
 	if subR == nil {
 		return nil, domain.ErrInvalidSubRepo
 	}

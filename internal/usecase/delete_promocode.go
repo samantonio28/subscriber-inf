@@ -9,10 +9,10 @@ import (
 
 type DeletePromocodeUC struct {
 	promocodeRepo domain.PromocodeRepository
-	logger        *logger.LogrusLogger
+	logger        logger.Logger
 }
 
-func NewDeletePromocodeUC(promocodeRepo domain.PromocodeRepository, logger *logger.LogrusLogger) (*DeletePromocodeUC, error) {
+func NewDeletePromocodeUC(promocodeRepo domain.PromocodeRepository, logger logger.Logger) (*DeletePromocodeUC, error) {
 	if promocodeRepo == nil {
 		return nil, domain.ErrInvalidSubRepo
 	}

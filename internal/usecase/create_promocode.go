@@ -10,10 +10,10 @@ import (
 
 type CreatePromocodeUC struct {
 	promocodeRepo domain.PromocodeRepository
-	logger        *logger.LogrusLogger
+	logger        logger.Logger
 }
 
-func NewCreatePromocodeUC(promocodeRepo domain.PromocodeRepository, logger *logger.LogrusLogger) (*CreatePromocodeUC, error) {
+func NewCreatePromocodeUC(promocodeRepo domain.PromocodeRepository, logger logger.Logger) (*CreatePromocodeUC, error) {
 	if promocodeRepo == nil {
 		return nil, domain.ErrInvalidSubRepo
 	}

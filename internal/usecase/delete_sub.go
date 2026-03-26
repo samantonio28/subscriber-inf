@@ -9,10 +9,10 @@ import (
 
 type DeleteSubUC struct {
 	subR   domain.SubscriptionRepository
-	logger *logger.LogrusLogger
+	logger logger.Logger
 }
 
-func NewDeleteSubUC(subR domain.SubscriptionRepository, logger *logger.LogrusLogger) (*DeleteSubUC, error) {
+func NewDeleteSubUC(subR domain.SubscriptionRepository, logger logger.Logger) (*DeleteSubUC, error) {
 	if subR == nil {
 		return nil, domain.ErrInvalidSubRepo
 	}
@@ -28,7 +28,7 @@ func (u *DeleteSubUC) DeleteSub(ctx context.Context, subId int) error {
 		u.logger.WithFields(map[string]any{
 			"subId": subId,
 			"error": err,
-		}).Logger.Error("failed to delete subscription")
+		})
 		return err
 	}
 	u.logger.Info("subscription", subId, "deleted")

@@ -9,10 +9,10 @@ import (
 
 type TotalCostsUC struct {
 	subR   domain.SubscriptionRepository
-	logger *logger.LogrusLogger
+	logger logger.Logger
 }
 
-func NewTotalCostsUC(subR domain.SubscriptionRepository, logger *logger.LogrusLogger) (*TotalCostsUC, error) {
+func NewTotalCostsUC(subR domain.SubscriptionRepository, logger logger.Logger) (*TotalCostsUC, error) {
 	if subR == nil {
 		return nil, domain.ErrInvalidSubRepo
 	}

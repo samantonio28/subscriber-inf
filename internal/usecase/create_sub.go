@@ -10,10 +10,10 @@ import (
 
 type CreateSubUC struct {
 	subR   domain.SubscriptionRepository
-	logger *logger.LogrusLogger
+	logger logger.Logger
 }
 
-func NewCreateSubUC(subR domain.SubscriptionRepository, logger *logger.LogrusLogger) (*CreateSubUC, error) {
+func NewCreateSubUC(subR domain.SubscriptionRepository, logger logger.Logger) (*CreateSubUC, error) {
 	if subR == nil {
 		return nil, domain.ErrInvalidSubRepo
 	}

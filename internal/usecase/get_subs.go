@@ -11,10 +11,10 @@ import (
 
 type GetSubsUC struct {
 	subR   domain.SubscriptionRepository
-	logger *logger.LogrusLogger
+	logger logger.Logger
 }
 
-func NewGetSubsUC(subR domain.SubscriptionRepository, logger *logger.LogrusLogger) (*GetSubsUC, error) {
+func NewGetSubsUC(subR domain.SubscriptionRepository, logger logger.Logger) (*GetSubsUC, error) {
 	if subR == nil {
 		return nil, domain.ErrInvalidSubRepo
 	}
