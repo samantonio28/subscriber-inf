@@ -29,13 +29,13 @@ type TopService struct {
 }
 
 type StatsResponse struct {
-	TopServices    []TopService   `json:"top_services"`
-	ServiceStats   []ServiceStats `json:"service_stats"`
-	TotalRevenue   int            `json:"total_revenue"`
-	TotalSubs      int            `json:"total_subs"`
-	GeneratedAt    time.Time      `json:"generated_at"`
-	ExecutionTime  time.Duration  `json:"execution_time"`
-	Source         string         `json:"source"` // "db" or "cache"
+	TopServices   []TopService   `json:"top_services"`
+	ServiceStats  []ServiceStats `json:"service_stats"`
+	TotalRevenue  int            `json:"total_revenue"`
+	TotalSubs     int            `json:"total_subs"`
+	GeneratedAt   time.Time      `json:"generated_at"`
+	ExecutionTime time.Duration  `json:"execution_time"`
+	Source        string         `json:"source"` // "db" or "cache"
 }
 
 func NewStatsService(db *pgxpool.Pool, redisClient *redis.Client) *StatsService {

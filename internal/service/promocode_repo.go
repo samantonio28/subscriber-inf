@@ -17,7 +17,7 @@ type PromocodeRepo struct {
 	p *pgxpool.Pool
 }
 
-func NewPromocodeRepo(p *pgxpool.Pool) (*PromocodeRepo, error) {
+func NewPromocodeRepo(p *pgxpool.Pool) (domain.PromocodeRepository, error) {
 	if p == nil {
 		return nil, domain.ErrInvalidSubRepo
 	}

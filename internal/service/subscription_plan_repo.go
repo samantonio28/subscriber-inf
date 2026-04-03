@@ -15,9 +15,9 @@ type SubscriptionPlanRepo struct {
 	p *pgxpool.Pool
 }
 
-func NewSubscriptionPlanRepo(p *pgxpool.Pool) (*SubscriptionPlanRepo, error) {
+func NewSubscriptionPlanRepo(p *pgxpool.Pool) (domain.SubscriptionPlanRepository, error) {
 	if p == nil {
-		return nil, domain.ErrInvalidSubRepo // reuse error
+		return nil, domain.ErrInvalidSubPlanRepo // reuse error
 	}
 	return &SubscriptionPlanRepo{p: p}, nil
 }

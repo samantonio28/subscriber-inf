@@ -20,7 +20,7 @@ type SubRepo struct {
 	p *pgxpool.Pool
 }
 
-func NewSubRepo(p *pgxpool.Pool) (*SubRepo, error) {
+func NewSubRepo(p *pgxpool.Pool) (domain.SubscriptionRepository, error) {
 	if p == nil {
 		return nil, domain.ErrInvalidSubRepo
 	}
