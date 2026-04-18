@@ -69,7 +69,6 @@ ALTER TABLE promocodes ADD PRIMARY KEY (promocode_id);
 ALTER TABLE promocodes ADD CONSTRAINT nn_service_id CHECK (service_id IS NOT NULL);
 ALTER TABLE promocodes ADD CONSTRAINT nn_promocode CHECK (promocode IS NOT NULL);
 ALTER TABLE promocodes ADD CONSTRAINT nn_sub_duration_days CHECK (sub_duration_days IS NOT NULL);
-ALTER TABLE promocodes ADD CONSTRAINT nn_sub_id CHECK (sub_id IS NOT NULL);
 ALTER TABLE promocodes ADD CONSTRAINT nn_expires_at CHECK (expires_at IS NOT NULL);
 ALTER TABLE promocodes ADD CONSTRAINT fk_promocodes_service 
     FOREIGN KEY (service_id) REFERENCES services(service_id);

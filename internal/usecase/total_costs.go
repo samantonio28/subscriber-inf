@@ -22,7 +22,7 @@ func NewTotalCostsUC(subR domain.SubscriptionRepository, logger logger.Logger) (
 	return &TotalCostsUC{subR: subR, logger: logger}, nil
 }
 
-func (u *TotalCostsUC) TotalCosts(ctx context.Context, input SubsFilterDTO) (int, []int, error) {
+func (u *TotalCostsUC) TotalCosts(ctx context.Context, input SubsFilterDTO) (int, []domain.Subscription, error) {
 	u.logger.Info("TotalCosts", "input", input)
 	f, err := DTOToFilter(input)
 	if err != nil {
@@ -30,15 +30,11 @@ func (u *TotalCostsUC) TotalCosts(ctx context.Context, input SubsFilterDTO) (int
 		return 0, nil, err
 	}
 
-	sum, subIds, err := u.subR.SubsTotalCosts(ctx, f)
+	sum, subs, err := u.subR.SubsTotalCosts(ctx, f)
 	if err != nil {
 		u.logger.Error("TotalCosts", "input", input, "error", err)
 		return 0, nil, err
 	}
-	subIdsI := make([]int, 0, len(subIds))
-	for _, s := range subIds {
-		subIdsI = append(subIdsI, int(s))
-	}
-	u.logger.Info("TotalCosts", "input", input, "output", sum, "subIds len", len(subIdsI))
-	return sum, subIdsI, nil
+	u.logger.Info("TotalCosts", "input", input, "output", sum, "subs len", len(subs))
+	return sum, subs, nil
 }

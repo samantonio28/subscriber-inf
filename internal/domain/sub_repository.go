@@ -12,5 +12,5 @@ type SubscriptionRepository interface {
 	StoreSub(ctx context.Context, sub Subscription) (SubID, error)
 	UpdateSub(ctx context.Context, sub Subscription) error
 	DeleteSub(ctx context.Context, subId SubID) error
-	SubsTotalCosts(ctx context.Context, filter SubsFilter) (int, []SubID, error)
+	SubsTotalCosts(ctx context.Context, filter SubsFilter) (int, []Subscription, error)
 }

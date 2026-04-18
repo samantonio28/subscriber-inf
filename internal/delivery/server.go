@@ -27,18 +27,26 @@ type SubsServer struct {
 	CreatePromocodeUC usecase.CreatePromocodeUC
 	DeletePromocodeUC usecase.DeletePromocodeUC
 	GetPromocodeUC    usecase.GetPromocodeUC
+	UpdatePromocodeUC usecase.UpdatePromocodeUC
+	ApplyPromocodeUC  usecase.ApplyPromocodeUC
 	// Subscription plan usecases
 	CreateSubscriptionPlanUC usecase.CreateSubscriptionPlanUC
 	GetSubscriptionPlanUC    usecase.GetSubscriptionPlanUC
 	UpdateSubscriptionPlanUC usecase.UpdateSubscriptionPlanUC
 	DeleteSubscriptionPlanUC usecase.DeleteSubscriptionPlanUC
-	logger                   *logger.LogrusLogger
+	// Stats overview usecase
+	StatsOverviewUC usecase.StatsOverviewUC
+	// Filtering usecases
+	GetFilteredPromocodesUC        usecase.GetFilteredPromocodesUC
+	GetFilteredSubscriptionPlansUC usecase.GetFilteredSubscriptionPlansUC
+	logger                         *logger.LogrusLogger
 }
 
 func NewSubsServer(
 	repo domain.SubscriptionRepository,
 	promoRepo domain.PromocodeRepository,
 	planRepo domain.SubscriptionPlanRepository,
+	statsService domain.StatsService,
 	logger *logger.LogrusLogger,
 ) (*SubsServer, error) {
 	createSubUC, err := usecase.NewCreateSubUC(repo, logger)
@@ -79,6 +87,28 @@ func NewSubsServer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GetPromocodeUC: %w", err)
 	}
+	updatePromoUC, err := usecase.NewUpdatePromocodeUC(promoRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create UpdatePromocodeUC: %w", err)
+	}
+	applyPromoUC, err := usecase.NewApplyPromocodeUC(repo, promoRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ApplyPromocodeUC: %w", err)
+	}
+	statsOverviewUC, err := usecase.NewStatsOverviewUC(repo, promoRepo, statsService, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create StatsOverviewUC: %w", err)
+	}
+
+	// Filtering usecases
+	getFilteredPromosUC, err := usecase.NewGetFilteredPromocodesUC(promoRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GetFilteredPromocodesUC: %w", err)
+	}
+	getFilteredPlansUC, err := usecase.NewGetFilteredSubscriptionPlansUC(planRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GetFilteredSubscriptionPlansUC: %w", err)
+	}
 
 	// Subscription plan usecases
 	createPlanUC, err := usecase.NewCreateSubscriptionPlanUC(planRepo, logger)
@@ -109,12 +139,19 @@ func NewSubsServer(
 		CreatePromocodeUC: *createPromoUC,
 		DeletePromocodeUC: *deletePromoUC,
 		GetPromocodeUC:    *getPromoUC,
+		UpdatePromocodeUC: *updatePromoUC,
+		ApplyPromocodeUC:  *applyPromoUC,
 		// Subscription plan
 		CreateSubscriptionPlanUC: *createPlanUC,
 		GetSubscriptionPlanUC:    *getPlanUC,
 		UpdateSubscriptionPlanUC: *updatePlanUC,
 		DeleteSubscriptionPlanUC: *deletePlanUC,
-		logger:                   logger,
+		// Stats overview
+		StatsOverviewUC: *statsOverviewUC,
+		// Filtering
+		GetFilteredPromocodesUC:        *getFilteredPromosUC,
+		GetFilteredSubscriptionPlansUC: *getFilteredPlansUC,
+		logger:                         logger,
 	}, nil
 }
 
@@ -135,20 +172,31 @@ func (s *SubsServer) GetSubscriptions(w http.ResponseWriter, r *http.Request, pa
 		return
 	}
 
-	subs := make([]api.Subscription, 0, len(dtos))
+	type subscriptionResponse struct {
+		SubId       int64   `json:"sub_id"`
+		ServiceName string  `json:"service_name"`
+		Price       int64   `json:"price"`
+		UserId      string  `json:"user_id"`
+		SubType     string  `json:"sub_type"`
+		StartDate   string  `json:"start_date"`
+		EndDate     *string `json:"end_date,omitempty"`
+	}
+
+	subs := make([]subscriptionResponse, 0, len(dtos))
 	for _, dto := range dtos {
-		sub := api.Subscription{
+		resp := subscriptionResponse{
+			SubId:       int64(dto.SubId),
 			ServiceName: dto.ServiceName,
 			Price:       int64(dto.Price),
-			UserId:      dto.UserId,
-			SubType:     (*api.SubscriptionType)(&dto.SubType),
+			UserId:      dto.UserId.String(),
+			SubType:     dto.SubType,
 			StartDate:   dto.StartDate.Format("01-2006"),
 		}
 		if !dto.EndDate.IsZero() {
 			endDate := dto.EndDate.Format("01-2006")
-			sub.EndDate = &endDate
+			resp.EndDate = &endDate
 		}
-		subs = append(subs, sub)
+		subs = append(subs, resp)
 	}
 
 	utils.MakeResponse(w, http.StatusOK, subs)
@@ -229,6 +277,149 @@ func (s *SubsServer) DeleteSubscriptionsId(w http.ResponseWriter, r *http.Reques
 	}
 
 	utils.MakeResponse(w, http.StatusNoContent, nil)
+}
+
+// PutPromocodesId updates an existing promocode
+func (s *SubsServer) PutPromocodesId(w http.ResponseWriter, r *http.Request, id int) {
+	var req struct {
+		ServiceID    int     `json:"service_id"`
+		Value        string  `json:"value"`
+		PlanID       *int    `json:"plan_id,omitempty"`
+		SubID        *int    `json:"sub_id,omitempty"`
+		ExpiresAt    *string `json:"expires_at,omitempty"`
+		Discount     int     `json:"discount"`
+		MaxUses      int     `json:"max_uses"`
+		CurUses      int     `json:"cur_uses"`
+		Status       string  `json:"status"`
+		DurationDays int     `json:"duration_days"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "invalid JSON",
+		})
+		return
+	}
+
+	var expiresAt time.Time
+	if req.ExpiresAt != nil {
+		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
+		if err != nil {
+			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+				"message": "invalid expires_at format, use RFC3339",
+			})
+			return
+		}
+		expiresAt = t
+	}
+
+	status, err := domain.NewPromocodeStatus(req.Status)
+	if err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "invalid status: " + err.Error(),
+		})
+		return
+	}
+
+	input := usecase.UpdatePromocodeInput{
+		ID:           domain.PromocodeID(id),
+		ServiceID:    req.ServiceID,
+		Value:        req.Value,
+		PlanID:       req.PlanID,
+		SubID:        req.SubID,
+		ExpiresAt:    expiresAt,
+		Discount:     req.Discount,
+		MaxUses:      req.MaxUses,
+		CurUses:      req.CurUses,
+		Status:       status,
+		DurationDays: req.DurationDays,
+	}
+
+	err = s.UpdatePromocodeUC.Update(r.Context(), input)
+	if err != nil {
+		if errors.Is(err, domain.ErrPromocodeNotFound) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"message": "promocode not found",
+			})
+			return
+		}
+		s.logger.Error("failed to update promocode", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"message": "failed to update promocode: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusOK, map[string]string{
+		"message": "promocode updated successfully",
+	})
+}
+
+// PostSubscriptionsIdApplyPromocode applies a promocode to a subscription
+func (s *SubsServer) PostSubscriptionsIdApplyPromocode(w http.ResponseWriter, r *http.Request, id int) {
+	var req struct {
+		Promocode string `json:"promocode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "invalid JSON",
+		})
+		return
+	}
+
+	input := usecase.ApplyPromocodeInput{
+		SubscriptionID: id,
+		PromocodeValue: req.Promocode,
+	}
+
+	output, err := s.ApplyPromocodeUC.Apply(r.Context(), input)
+	if err != nil {
+		if errors.Is(err, domain.ErrSubscriptionNotFound) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"message": "subscription not found",
+			})
+			return
+		}
+		if errors.Is(err, domain.ErrPromocodeNotFound) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"message": "promocode not found",
+			})
+			return
+		}
+		if errors.Is(err, domain.ErrPromocodeNotActive) ||
+			errors.Is(err, domain.ErrPromocodeExpired) ||
+			errors.Is(err, domain.ErrPromocodeMaxUsesReached) ||
+			errors.Is(err, domain.ErrPromocodeNotApplicable) {
+			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+				"message": err.Error(),
+			})
+			return
+		}
+		s.logger.Error("failed to apply promocode", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"message": "failed to apply promocode: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusOK, map[string]any{
+		"message":          output.Message,
+		"discount_applied": output.DiscountApplied,
+		"new_price":        output.NewPrice,
+	})
+}
+
+// GetStatsOverview returns system overview statistics
+func (s *SubsServer) GetStatsOverview(w http.ResponseWriter, r *http.Request) {
+	output, err := s.StatsOverviewUC.GetOverview(r.Context())
+	if err != nil {
+		s.logger.Error("failed to get stats overview", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to get stats overview: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusOK, output)
 }
 
 func (s *SubsServer) GetSubscriptionsId(w http.ResponseWriter, r *http.Request, id int) {
@@ -375,7 +566,7 @@ func (s *SubsServer) PostTotalCosts(w http.ResponseWriter, r *http.Request) {
 		SubType:     subType,
 	}
 
-	sum, subIds, err := s.TotalCostsUC.TotalCosts(r.Context(), dto)
+	sum, subs, err := s.TotalCostsUC.TotalCosts(r.Context(), dto)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
@@ -389,17 +580,36 @@ func (s *SubsServer) PostTotalCosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	int64SubIds := make([]int64, len(subIds))
-	for i, id := range subIds {
-		int64SubIds[i] = int64(id)
+	// Extract sub IDs
+	int64SubIds := make([]int64, len(subs))
+	subscriptions := make([]map[string]any, len(subs))
+	for i, sub := range subs {
+		int64SubIds[i] = int64(sub.SubId)
+		// Calculate duration months and total cost for period (simplified)
+		durationMonths := 0
+		totalCostForPeriod := 0
+		// TODO: implement proper calculation
+		subscriptions[i] = map[string]any{
+			"sub_id":                int64(sub.SubId),
+			"service_name":          sub.ServiceName,
+			"price":                 int64(sub.Price),
+			"user_id":               sub.UserID,
+			"sub_type":              sub.SubType.String(),
+			"start_date":            sub.StartDate.Format("01-2006"),
+			"end_date":              sub.EndDate.Format("01-2006"),
+			"duration_months":       durationMonths,
+			"total_cost_for_period": totalCostForPeriod,
+		}
 	}
 
 	response := map[string]any{
-		"total_sum": int64(sum),
-		"sub_ids":   int64SubIds,
+		"total_sum":     int64(sum),
+		"sub_ids":       int64SubIds,
+		"subscriptions": subscriptions,
 	}
 	utils.MakeResponse(w, http.StatusOK, response)
 }
+
 // Promocode handlers
 
 func (s *SubsServer) PostPromocodes(w http.ResponseWriter, r *http.Request) {
@@ -459,10 +669,54 @@ func (s *SubsServer) PostPromocodes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *SubsServer) GetPromocodes(w http.ResponseWriter, r *http.Request, params api.GetPromocodesParams) {
-	// For simplicity, return not implemented; can be extended later
-	utils.MakeResponse(w, http.StatusNotImplemented, map[string]string{
-		"message": "filtered list not implemented yet",
-	})
+	// Преобразовать параметры API в фильтр юзкейса
+	filter := usecase.PromocodeFilter{}
+
+	if params.ServiceId != nil {
+		filter.ServiceID = params.ServiceId
+	}
+	if params.PlanId != nil {
+		filter.PlanID = params.PlanId
+	}
+	if params.SubId != nil {
+		filter.SubID = params.SubId
+	}
+	if params.Status != nil {
+		status, err := domain.NewPromocodeStatus(string(*params.Status))
+		if err != nil {
+			utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+				"error": "invalid status value",
+			})
+			return
+		}
+		filter.Status = &status
+	}
+	if params.DiscountMin != nil {
+		filter.DiscountMin = params.DiscountMin
+	}
+	if params.DiscountMax != nil {
+		filter.DiscountMax = params.DiscountMax
+	}
+	if params.ExpiresBefore != nil {
+		filter.ExpiresBefore = params.ExpiresBefore
+	}
+	if params.ExpiresAfter != nil {
+		filter.ExpiresAfter = params.ExpiresAfter
+	}
+	if params.CodeContains != nil {
+		filter.CodeContains = params.CodeContains
+	}
+
+	promocodes, err := s.GetFilteredPromocodesUC.GetFiltered(r.Context(), filter)
+	if err != nil {
+		s.logger.Error("failed to get filtered promocodes", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to get promocodes: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusOK, promocodes)
 }
 
 func (s *SubsServer) GetPromocodesId(w http.ResponseWriter, r *http.Request, id int) {
@@ -487,20 +741,20 @@ func (s *SubsServer) GetPromocodesId(w http.ResponseWriter, r *http.Request, id 
 func (s *SubsServer) DeletePromocodesId(w http.ResponseWriter, r *http.Request, id int) {
 	err := s.DeletePromocodeUC.Delete(r.Context(), domain.PromocodeID(id))
 	if err != nil {
-		if errors.Is(err, domain.ErrPromocodeNotFound) {
+		if errors.Is(err, domain.ErrPromocodeNotFound) || errors.Is(err, domain.ErrNoPromocodesDeleted) {
 			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
-				"error": "promocode not found",
+				"message": "promocode not found",
 			})
 			return
 		}
 		s.logger.Error("failed to delete promocode", "error", err)
 		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
-			"error": "failed to delete promocode: " + err.Error(),
+			"message": "failed to delete promocode: " + err.Error(),
 		})
 		return
 	}
 
-	utils.MakeResponse(w, http.StatusNoContent, nil)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *SubsServer) GetPromocodesCodeCode(w http.ResponseWriter, r *http.Request, code string) {
@@ -561,10 +815,38 @@ func (s *SubsServer) PostSubscriptionPlans(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *SubsServer) GetSubscriptionPlans(w http.ResponseWriter, r *http.Request, params api.GetSubscriptionPlansParams) {
-	// For simplicity, return not implemented; can be extended later
-	utils.MakeResponse(w, http.StatusNotImplemented, map[string]string{
-		"message": "filtered list not implemented yet",
-	})
+	// Преобразовать параметры API в фильтр юзкейса
+	filter := usecase.SubscriptionPlanFilter{}
+
+	if params.ServiceId != nil {
+		filter.ServiceID = params.ServiceId
+	}
+	if params.NameContains != nil {
+		filter.NameContains = params.NameContains
+	}
+	if params.PriceMin != nil {
+		filter.PriceMin = params.PriceMin
+	}
+	if params.PriceMax != nil {
+		filter.PriceMax = params.PriceMax
+	}
+	if params.DurationDaysMin != nil {
+		filter.DurationDaysMin = params.DurationDaysMin
+	}
+	if params.DurationDaysMax != nil {
+		filter.DurationDaysMax = params.DurationDaysMax
+	}
+
+	plans, err := s.GetFilteredSubscriptionPlansUC.GetFiltered(r.Context(), filter)
+	if err != nil {
+		s.logger.Error("failed to get filtered subscription plans", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to get subscription plans: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusOK, plans)
 }
 
 func (s *SubsServer) GetSubscriptionPlansId(w http.ResponseWriter, r *http.Request, id int) {
@@ -633,13 +915,13 @@ func (s *SubsServer) DeleteSubscriptionPlansId(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		if errors.Is(err, domain.ErrSubscriptionPlanNotFound) {
 			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
-				"error": "subscription plan not found",
+				"message": "subscription plan not found",
 			})
 			return
 		}
 		s.logger.Error("failed to delete subscription plan", "error", err)
 		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
-			"error": "failed to delete subscription plan: " + err.Error(),
+			"message": "failed to delete subscription plan: " + err.Error(),
 		})
 		return
 	}

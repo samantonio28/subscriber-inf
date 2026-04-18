@@ -105,16 +105,31 @@ func (m *MockPromocodeRepository) GetByService(ctx context.Context, serviceID in
 
 // GetByService indicates an expected call of GetByService.
 func (mr *MockPromocodeRepositoryMockRecorder) GetByService(ctx, serviceID interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByService", reflect.TypeOf((*MockPromocodeRepository)(nil).GetByService), ctx, serviceID)
+    mr.mock.ctrl.T.Helper()
+    return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByService", reflect.TypeOf((*MockPromocodeRepository)(nil).GetByService), ctx, serviceID)
+}
+
+// GetAll mocks base method.
+func (m *MockPromocodeRepository) GetAll(ctx context.Context) ([]domain.Promocode, error) {
+    m.ctrl.T.Helper()
+    ret := m.ctrl.Call(m, "GetAll", ctx)
+    ret0, _ := ret[0].([]domain.Promocode)
+    ret1, _ := ret[1].(error)
+    return ret0, ret1
+}
+
+// GetAll indicates an expected call of GetAll.
+func (mr *MockPromocodeRepositoryMockRecorder) GetAll(ctx interface{}) *gomock.Call {
+    mr.mock.ctrl.T.Helper()
+    return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockPromocodeRepository)(nil).GetAll), ctx)
 }
 
 // IncrementUses mocks base method.
 func (m *MockPromocodeRepository) IncrementUses(ctx context.Context, id domain.PromocodeID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IncrementUses", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
+    m.ctrl.T.Helper()
+    ret := m.ctrl.Call(m, "IncrementUses", ctx, id)
+    ret0, _ := ret[0].(error)
+    return ret0
 }
 
 // IncrementUses indicates an expected call of IncrementUses.

@@ -23,14 +23,12 @@ func NewDeleteSubUC(subR domain.SubscriptionRepository, logger logger.Logger) (*
 }
 
 func (u *DeleteSubUC) DeleteSub(ctx context.Context, subId int) error {
+	u.logger.Debug("deleting subscription", "subId", subId)
 	err := u.subR.DeleteSub(ctx, domain.SubID(subId))
 	if err != nil {
-		u.logger.WithFields(map[string]any{
-			"subId": subId,
-			"error": err,
-		})
+		u.logger.Error("failed to delete subscription", "subId", subId, "error", err)
 		return err
 	}
-	u.logger.Info("subscription", subId, "deleted")
+	u.logger.Info("subscription deleted successfully", "subId", subId)
 	return nil
 }

@@ -58,6 +58,10 @@ UPDATE promocodes
 SET cur_uses = cur_uses + 1
 WHERE promocode_id = $1;
 `
+	getAllPromocodes = `
+SELECT promocode_id, service_id, promocode, plan_id, sub_id, expires_at, created_at, discount, max_uses, cur_uses, status, duration_days
+FROM promocodes;
+`
 )
 
 func (r *PromocodeRepo) GetByID(ctx context.Context, id domain.PromocodeID) (domain.Promocode, error) {
@@ -162,6 +166,69 @@ func (r *PromocodeRepo) GetByCode(ctx context.Context, code string) (domain.Prom
 
 func (r *PromocodeRepo) GetByService(ctx context.Context, serviceID int) ([]domain.Promocode, error) {
 	rows, err := r.p.Query(ctx, getPromocodesByService, serviceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query promocodes: %w", err)
+	}
+	defer rows.Close()
+
+	var promocodes []domain.Promocode
+	for rows.Next() {
+		var pc domain.Promocode
+		var planID pgtype.Int4
+		var subID pgtype.Int4
+		var expiresAt pgtype.Date
+		var createdAt pgtype.Timestamp
+		var status string
+
+		err := rows.Scan(
+			&pc.PromocodeID,
+			&pc.ServiceID,
+			&pc.Value,
+			&planID,
+			&subID,
+			&expiresAt,
+			&createdAt,
+			&pc.Discount,
+			&pc.MaxUses,
+			&pc.CurUses,
+			&status,
+			&pc.DurationDays,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan promocode: %w", err)
+		}
+
+		if planID.Valid {
+			val := int(planID.Int32)
+			pc.PlanID = &val
+		}
+		if subID.Valid {
+			val := int(subID.Int32)
+			pc.SubID = &val
+		}
+		if expiresAt.Valid {
+			pc.ExpiresAt = expiresAt.Time
+		}
+		if createdAt.Valid {
+			pc.CreatedAt = createdAt.Time
+		}
+
+		statusObj, err := domain.NewPromocodeStatus(status)
+		if err != nil {
+			return nil, err
+		}
+		pc.Status = statusObj
+
+		promocodes = append(promocodes, pc)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+	return promocodes, nil
+}
+
+func (r *PromocodeRepo) GetAll(ctx context.Context) ([]domain.Promocode, error) {
+	rows, err := r.p.Query(ctx, getAllPromocodes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query promocodes: %w", err)
 	}

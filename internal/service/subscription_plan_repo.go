@@ -46,6 +46,10 @@ WHERE plan_id = $1;
 	deletePlan = `
 DELETE FROM subscription_plans WHERE plan_id = $1;
 `
+	getAllPlans = `
+SELECT plan_id, service_id, name, duration_days, price
+FROM subscription_plans;
+`
 )
 
 func (r *SubscriptionPlanRepo) GetByID(ctx context.Context, id domain.PlanID) (domain.SubscriptionPlan, error) {
@@ -65,6 +69,34 @@ func (r *SubscriptionPlanRepo) GetByID(ctx context.Context, id domain.PlanID) (d
 
 func (r *SubscriptionPlanRepo) GetByService(ctx context.Context, serviceID int) ([]domain.SubscriptionPlan, error) {
 	rows, err := r.p.Query(ctx, getPlansByService, serviceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query plans: %w", err)
+	}
+	defer rows.Close()
+
+	var plans []domain.SubscriptionPlan
+	for rows.Next() {
+		var plan domain.SubscriptionPlan
+		err := rows.Scan(
+			&plan.PlanID,
+			&plan.ServiceID,
+			&plan.Name,
+			&plan.DurationDays,
+			&plan.Price,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan plan: %w", err)
+		}
+		plans = append(plans, plan)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+	return plans, nil
+}
+
+func (r *SubscriptionPlanRepo) GetAll(ctx context.Context) ([]domain.SubscriptionPlan, error) {
+	rows, err := r.p.Query(ctx, getAllPlans)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query plans: %w", err)
 	}

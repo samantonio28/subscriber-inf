@@ -81,11 +81,11 @@ func (mr *MockSubscriptionRepositoryMockRecorder) Sub(ctx, subId interface{}) *g
 }
 
 // SubsTotalCosts mocks base method.
-func (m *MockSubscriptionRepository) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) (int, []domain.SubID, error) {
+func (m *MockSubscriptionRepository) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) (int, []domain.Subscription, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SubsTotalCosts", ctx, filter)
 	ret0, _ := ret[0].(int)
-	ret1, _ := ret[1].([]domain.SubID)
+	ret1, _ := ret[1].([]domain.Subscription)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }

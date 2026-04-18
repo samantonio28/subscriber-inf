@@ -280,7 +280,7 @@ func (s *SubRepo) DeleteSub(ctx context.Context, subId domain.SubID) error {
 	return nil
 }
 
-func (s *SubRepo) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) (int, []domain.SubID, error) {
+func (s *SubRepo) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) (int, []domain.Subscription, error) {
 	solve := "backend"
 	switch solve {
 	case "db":
@@ -292,7 +292,7 @@ func (s *SubRepo) SubsTotalCosts(ctx context.Context, filter domain.SubsFilter) 
 	}
 }
 
-func (s *SubRepo) subsTotalCostsBackend(ctx context.Context, filter domain.SubsFilter) (int, []domain.SubID, error) {
+func (s *SubRepo) subsTotalCostsBackend(ctx context.Context, filter domain.SubsFilter) (int, []domain.Subscription, error) {
 	if filter.UserID == uuid.Nil || filter.StartDate.IsZero() || !filter.EndDate.IsZero() && filter.EndDate.Before(filter.StartDate) {
 		return 0, nil, fmt.Errorf("user id and start date is required || end date must be after start date")
 	}
@@ -307,7 +307,7 @@ func (s *SubRepo) subsTotalCostsBackend(ctx context.Context, filter domain.SubsF
 	}
 
 	sumCost := 0
-	subIds := make([]domain.SubID, 0, len(allSubs))
+	subs := make([]domain.Subscription, 0, len(allSubs))
 
 	for _, sub := range allSubs {
 		if filter.SubType.String() != "" && sub.SubType != filter.SubType {
@@ -330,11 +330,11 @@ func (s *SubRepo) subsTotalCostsBackend(ctx context.Context, filter domain.SubsF
 			continue
 		}
 		sumCost += sub.Price * months
-		subIds = append(subIds, sub.SubId)
+		subs = append(subs, sub)
 	}
-	return sumCost, subIds, nil
+	return sumCost, subs, nil
 }
 
-func (s *SubRepo) subsTotalCostsDB(_ context.Context, _ domain.SubsFilter) (int, []domain.SubID, error) {
+func (s *SubRepo) subsTotalCostsDB(_ context.Context, _ domain.SubsFilter) (int, []domain.Subscription, error) {
 	return 0, nil, nil
 }

@@ -1,9 +1,8 @@
-
 openapi: 3.0.4
 
 info:
   title: Subscriber Inf - OpenAPI 3.0
-  version: 1.1.0
+  version: 1.1.1
 
 tags:
 - name: subscriptions
@@ -204,6 +203,65 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
+  /subscriptions/{id}/apply-promocode:
+    post:
+      tags:
+      - subscriptions
+      summary: Apply promocode to subscription
+      description: Apply a promocode to an existing subscription to get discount
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                promocode:
+                  type: string
+                  example: "SUMMER2025"
+              required:
+              - promocode
+        required: true
+      responses:
+        '200':
+          description: Promocode applied successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Promocode applied successfully"
+                  discount_applied:
+                    type: integer
+                    example: 20
+                  new_price:
+                    type: integer
+                    example: 319
+        '400':
+          description: Invalid input or promocode not applicable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '404':
+          description: Subscription or promocode not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
   /total_costs:
     post:
       tags:
@@ -235,6 +293,16 @@ paths:
                       $ref: "#/components/schemas/SubscriptionType"
                   required:
                   - service_name
+                sort_by:
+                  type: string
+                  enum: [price, start_date, end_date, duration_months, total_cost_for_period]
+                  default: price
+                  description: "Field to sort by"
+                sort_order:
+                  type: string
+                  enum: [asc, desc]
+                  default: desc
+                  description: "Sort order"
               required:
               - start_date
               - filter
@@ -256,6 +324,11 @@ paths:
                     items:
                       type: integer
                       format: int64
+                  subscriptions:
+                    description: Detailed subscription data
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SubscriptionDetail"
         '400':
           description: Invalid input
           content:
@@ -316,12 +389,60 @@ paths:
         required: false
         schema:
           type: integer
+      - name: plan_id
+        in: query
+        description: Filter by subscription plan ID
+        required: false
+        schema:
+          type: integer
+      - name: sub_id
+        in: query
+        description: Filter by subscription ID
+        required: false
+        schema:
+          type: integer
       - name: status
         in: query
         description: Filter by status
         required: false
         schema:
           $ref: '#/components/schemas/PromocodeStatus'
+      - name: discount_min
+        in: query
+        description: Minimum discount percentage
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 100
+      - name: discount_max
+        in: query
+        description: Maximum discount percentage
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 100
+      - name: expires_before
+        in: query
+        description: Filter promocodes expiring before this date (ISO 8601)
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: expires_after
+        in: query
+        description: Filter promocodes expiring after this date (ISO 8601)
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: code_contains
+        in: query
+        description: Filter by promocode value containing substring
+        required: false
+        schema:
+          type: string
       responses:
         '200':
           description: List of promocodes
@@ -355,6 +476,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Promocode'
+        '404':
+          description: Promocode not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    put:
+      tags:
+      - promocodes
+      summary: Update promocode
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Promocode'
+        required: true
+      responses:
+        '200':
+          description: Promocode updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "promocode updated successfully"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
         '404':
           description: Promocode not found
           content:
@@ -470,6 +636,40 @@ paths:
         required: false
         schema:
           type: integer
+      - name: name_contains
+        in: query
+        description: Filter by plan name containing substring
+        required: false
+        schema:
+          type: string
+      - name: price_min
+        in: query
+        description: Minimum price
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+      - name: price_max
+        in: query
+        description: Maximum price
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+      - name: duration_days_min
+        in: query
+        description: Minimum duration in days
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+      - name: duration_days_max
+        in: query
+        description: Maximum duration in days
+        required: false
+        schema:
+          type: integer
+          minimum: 1
       responses:
         '200':
           description: List of subscription plans
@@ -586,6 +786,53 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
 
+  /stats/overview:
+    get:
+      tags:
+      - analytics
+      summary: Get system overview statistics
+      description: Returns aggregated statistics about subscriptions, promocodes, and revenue
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_subscriptions:
+                    type: integer
+                    example: 150
+                  active_subscriptions:
+                    type: integer
+                    example: 120
+                  total_promocodes:
+                    type: integer
+                    example: 25
+                  active_promocodes:
+                    type: integer
+                    example: 18
+                  total_revenue:
+                    type: integer
+                    example: 50000
+                  avg_subscription_price:
+                    type: number
+                    format: float
+                    example: 333.33
+                  most_popular_service:
+                    type: string
+                    example: "Yandex Plus"
+                  service_stats:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ServiceStats'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
 components:
   schemas:
     ApiResponse:
@@ -625,6 +872,49 @@ components:
       - price
       - user_id
       - start_date
+    SubscriptionDetail:
+      type: object
+      properties:
+        sub_id:
+          type: integer
+          format: int64
+          example: 123
+        service_name:
+          type: string
+          example: "Yandex Plus"
+        price:
+          type: integer
+          format: int64
+          example: 399
+        user_id:
+          type: string
+          format: uuid
+        sub_type:
+          $ref: "#/components/schemas/SubscriptionType"
+        start_date:
+          type: string
+          example: "07-2025"
+          description: "Date in format MM-YYYY"
+        end_date:
+          type: string
+          example: "08-2025"
+          description: "Date in format MM-YYYY"
+        duration_months:
+          type: integer
+          example: 2
+          description: "Duration of subscription within the filtered period (months)"
+        total_cost_for_period:
+          type: integer
+          format: int64
+          example: 798
+          description: "Total cost for this subscription within the filtered period (price * duration_months)"
+      required:
+        - sub_id
+        - service_name
+        - price
+        - user_id
+        - sub_type
+        - start_date
     ServiceStats:
       type: object
       properties:

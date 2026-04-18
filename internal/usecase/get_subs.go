@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"log"
 
 	"github.com/google/uuid"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
@@ -25,17 +24,16 @@ func NewGetSubsUC(subR domain.SubscriptionRepository, logger logger.Logger) (*Ge
 }
 
 func (u *GetSubsUC) SubsByUserId(ctx context.Context, userId uuid.UUID) ([]SubscriptionDTO, error) {
-	u.logger.Info("getting subscriptions by user id", userId)
-	log.Println("getting subscriptions by user id", userId)
+	u.logger.Info("getting subscriptions by user id", "user_id", userId)
 	subs, err := u.subR.UserSubs(ctx, userId)
 	if err != nil {
-		u.logger.Error("error getting subscriptions by user id", userId, err)
+		u.logger.Error("error getting subscriptions by user id", "user_id", userId, "error", err)
 		return nil, err
 	}
 	dto := make([]SubscriptionDTO, 0, len(subs))
 	for _, s := range subs {
 		dto = append(dto, SubToDTO(s))
 	}
-	u.logger.Info("got subscriptions by user id", userId, ": ", len(dto))
+	u.logger.Info("got subscriptions by user id", "user_id", userId, "count", len(dto))
 	return dto, nil
 }

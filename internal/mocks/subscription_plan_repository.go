@@ -90,16 +90,31 @@ func (m *MockSubscriptionPlanRepository) GetByService(ctx context.Context, servi
 
 // GetByService indicates an expected call of GetByService.
 func (mr *MockSubscriptionPlanRepositoryMockRecorder) GetByService(ctx, serviceID interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByService", reflect.TypeOf((*MockSubscriptionPlanRepository)(nil).GetByService), ctx, serviceID)
+    mr.mock.ctrl.T.Helper()
+    return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByService", reflect.TypeOf((*MockSubscriptionPlanRepository)(nil).GetByService), ctx, serviceID)
+}
+
+// GetAll mocks base method.
+func (m *MockSubscriptionPlanRepository) GetAll(ctx context.Context) ([]domain.SubscriptionPlan, error) {
+    m.ctrl.T.Helper()
+    ret := m.ctrl.Call(m, "GetAll", ctx)
+    ret0, _ := ret[0].([]domain.SubscriptionPlan)
+    ret1, _ := ret[1].(error)
+    return ret0, ret1
+}
+
+// GetAll indicates an expected call of GetAll.
+func (mr *MockSubscriptionPlanRepositoryMockRecorder) GetAll(ctx interface{}) *gomock.Call {
+    mr.mock.ctrl.T.Helper()
+    return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAll", reflect.TypeOf((*MockSubscriptionPlanRepository)(nil).GetAll), ctx)
 }
 
 // Update mocks base method.
 func (m *MockSubscriptionPlanRepository) Update(ctx context.Context, plan domain.SubscriptionPlan) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, plan)
-	ret0, _ := ret[0].(error)
-	return ret0
+    m.ctrl.T.Helper()
+    ret := m.ctrl.Call(m, "Update", ctx, plan)
+    ret0, _ := ret[0].(error)
+    return ret0
 }
 
 // Update indicates an expected call of Update.

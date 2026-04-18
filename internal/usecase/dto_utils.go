@@ -8,21 +8,21 @@ import (
 )
 
 type SubscriptionDTO struct {
-	SubId       int
-	UserId      uuid.UUID
-	ServiceName string
-	Price       int
-	SubType     string
-	StartDate   time.Time
-	EndDate     time.Time
+	SubId       int       `json:"sub_id"`
+	UserId      uuid.UUID `json:"user_id"`
+	ServiceName string    `json:"service_name"`
+	Price       int       `json:"price"`
+	SubType     string    `json:"sub_type"`
+	StartDate   time.Time `json:"start_date"`
+	EndDate     time.Time `json:"end_date"`
 }
 
 type SubsFilterDTO struct {
-	StartDate   time.Time
-	EndDate     time.Time
-	UserID      uuid.UUID
-	ServiceName string
-	SubType     string
+	StartDate   time.Time `json:"start_date,omitempty"`
+	EndDate     time.Time `json:"end_date,omitempty"`
+	UserID      uuid.UUID `json:"user_id,omitempty"`
+	ServiceName string    `json:"service_name,omitempty"`
+	SubType     string    `json:"sub_type,omitempty"`
 }
 
 func SubToDTO(sub domain.Subscription) SubscriptionDTO {
@@ -75,4 +75,61 @@ func DTOToFilter(dto SubsFilterDTO) (domain.SubsFilter, error) {
 		return domain.SubsFilter{}, err
 	}
 	return *f, nil
+}
+
+type PromocodeDTO struct {
+	PromocodeID  int       `json:"promocode_id"`
+	ServiceID    int       `json:"service_id"`
+	Value        string    `json:"value"`
+	PlanID       *int      `json:"plan_id,omitempty"`
+	SubID        *int      `json:"sub_id,omitempty"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	CreatedAt    time.Time `json:"created_at"`
+	Discount     int       `json:"discount"`
+	MaxUses      int       `json:"max_uses"`
+	CurUses      int       `json:"cur_uses"`
+	Status       string    `json:"status"`
+	DurationDays int       `json:"duration_days"`
+}
+
+func PromocodeToDTO(promo domain.Promocode) PromocodeDTO {
+	return PromocodeDTO{
+		PromocodeID:  int(promo.PromocodeID),
+		ServiceID:    promo.ServiceID,
+		Value:        promo.Value,
+		PlanID:       promo.PlanID,
+		SubID:        promo.SubID,
+		ExpiresAt:    promo.ExpiresAt,
+		CreatedAt:    promo.CreatedAt,
+		Discount:     promo.Discount,
+		MaxUses:      promo.MaxUses,
+		CurUses:      promo.CurUses,
+		Status:       string(promo.Status),
+		DurationDays: promo.DurationDays,
+	}
+}
+
+func DTOToPromocode(dto PromocodeDTO) (domain.Promocode, error) {
+	status, err := domain.NewPromocodeStatus(dto.Status)
+	if err != nil {
+		return domain.Promocode{}, err
+	}
+	promo, err := domain.NewPromocode(
+		domain.PromocodeID(dto.PromocodeID),
+		dto.ServiceID,
+		dto.Value,
+		dto.PlanID,
+		dto.SubID,
+		dto.ExpiresAt,
+		dto.CreatedAt,
+		dto.Discount,
+		dto.MaxUses,
+		dto.CurUses,
+		status,
+		dto.DurationDays,
+	)
+	if err != nil {
+		return domain.Promocode{}, err
+	}
+	return *promo, nil
 }

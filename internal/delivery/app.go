@@ -50,13 +50,18 @@ func App(redisClient *redis.Client) {
 		log.Fatal("Failed to create subscription plan repo:", err)
 	}
 
+	statsService, err := service.NewStatsService(pool, redisClient)
+	if err != nil {
+		log.Fatal("Failed to create stats repo:", err)
+	}
+
 	logger, err := logger.NewLogrusLogger("logs/access.log")
 	if err != nil {
 		fmt.Printf("Failed to initialize logger: %v\n", err)
 		return
 	}
 
-	serverImpl, err := NewSubsServer(repo, promoRepo, planRepo, logger)
+	serverImpl, err := NewSubsServer(repo, promoRepo, planRepo, statsService, logger)
 	if err != nil {
 		log.Fatal("Failed to create server implementation:", err)
 	}
@@ -64,6 +69,7 @@ func App(redisClient *redis.Client) {
 	r := api.Handler(serverImpl)
 
 	rWithMiddleware := mux.NewRouter()
+	rWithMiddleware.Use(CORSMiddleware())
 	rWithMiddleware.Use(AccessLogMiddleware(logger))
 	rWithMiddleware.PathPrefix("/").Handler(r)
 

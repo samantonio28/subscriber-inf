@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/samantonio28/subscriber-inf/internal/domain"
 	"github.com/samantonio28/subscriber-inf/internal/redis"
 )
 
@@ -38,20 +39,26 @@ type StatsResponse struct {
 	Source        string         `json:"source"` // "db" or "cache"
 }
 
-func NewStatsService(db *pgxpool.Pool, redisClient *redis.Client) *StatsService {
+func NewStatsService(db *pgxpool.Pool, redisClient *redis.Client) (*StatsService, error) {
+	if db == nil {
+		return nil, fmt.Errorf("db is nil")
+	}
+	if redisClient == nil {
+		return nil, fmt.Errorf("redis client is nil")
+	}
 	return &StatsService{
 		db:    db,
 		redis: redisClient,
-	}
+	}, nil
 }
 
 // GetServiceStatsFromDB получает статистику напрямую из БД
-func (s *StatsService) GetServiceStatsFromDB(ctx context.Context) (*StatsResponse, error) {
+func (s *StatsService) GetServiceStatsFromDB(ctx context.Context) (*domain.StatsResponse, error) {
 	start := time.Now()
 
 	// Топ 10 сервисов по количеству подписок
 	topServicesQuery := `
-		SELECT 
+		SELECT
 			s.service_name,
 			COUNT(sub.sub_id) as sub_count,
 			COALESCE(SUM(sub.price), 0) as revenue
@@ -80,7 +87,7 @@ func (s *StatsService) GetServiceStatsFromDB(ctx context.Context) (*StatsRespons
 
 	// Общая статистика по сервисам
 	statsQuery := `
-		SELECT 
+		SELECT
 			s.service_name,
 			COUNT(sub.sub_id) as total_subs,
 			COUNT(CASE WHEN sub.end_date IS NULL OR sub.end_date >= CURRENT_DATE THEN 1 END) as active_subs,
@@ -113,9 +120,29 @@ func (s *StatsService) GetServiceStatsFromDB(ctx context.Context) (*StatsRespons
 
 	executionTime := time.Since(start)
 
-	return &StatsResponse{
-		TopServices:   topServices,
-		ServiceStats:  serviceStats,
+	// Преобразование во внутренние типы домена
+	domainTopServices := make([]domain.TopService, len(topServices))
+	for i, ts := range topServices {
+		domainTopServices[i] = domain.TopService{
+			ServiceName: ts.ServiceName,
+			SubCount:    ts.SubCount,
+			Revenue:     ts.Revenue,
+		}
+	}
+
+	domainServiceStats := make([]domain.ServiceStats, len(serviceStats))
+	for i, ss := range serviceStats {
+		domainServiceStats[i] = domain.ServiceStats{
+			ServiceName:  ss.ServiceName,
+			TotalSubs:    ss.TotalSubs,
+			ActiveSubs:   ss.ActiveSubs,
+			TotalRevenue: ss.TotalRevenue,
+		}
+	}
+
+	return &domain.StatsResponse{
+		TopServices:   domainTopServices,
+		ServiceStats:  domainServiceStats,
 		TotalRevenue:  totalRevenue,
 		TotalSubs:     totalSubs,
 		GeneratedAt:   time.Now(),
@@ -125,13 +152,13 @@ func (s *StatsService) GetServiceStatsFromDB(ctx context.Context) (*StatsRespons
 }
 
 // GetServiceStatsFromCache получает статистику из кэша Redis
-func (s *StatsService) GetServiceStatsFromCache(ctx context.Context) (*StatsResponse, error) {
+func (s *StatsService) GetServiceStatsFromCache(ctx context.Context) (*domain.StatsResponse, error) {
 	start := time.Now()
 
 	// Проверяем кэш
 	cached, err := s.redis.Get(ctx, "service_stats")
 	if err == nil && cached != "" {
-		var stats StatsResponse
+		var stats domain.StatsResponse
 		if err := json.Unmarshal([]byte(cached), &stats); err == nil {
 			stats.ExecutionTime = time.Since(start)
 			stats.Source = "cache"
