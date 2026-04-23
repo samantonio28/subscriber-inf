@@ -83,6 +83,7 @@ func (uc *ApplyPromocodeUC) Apply(ctx context.Context, input ApplyPromocodeInput
 	newPrice := sub.Price * (100 - discount) / 100
 
 	// 7. Update subscription with new price and sub_type = promocode
+	promocodeID := int(promo.PromocodeID)
 	updatedSub, err := domain.NewSubscription(
 		sub.SubId,
 		sub.UserID,
@@ -91,6 +92,8 @@ func (uc *ApplyPromocodeUC) Apply(ctx context.Context, input ApplyPromocodeInput
 		"promocode",
 		sub.StartDate,
 		sub.EndDate,
+		sub.PlanID,
+		&promocodeID,
 	)
 	if err != nil {
 		uc.logger.Error("failed to create updated subscription", "error", err)

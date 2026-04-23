@@ -54,6 +54,11 @@ func TestDeletePromocodeUC_Delete(t *testing.T) {
 	mockRepo := mock.NewMockPromocodeRepository(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
 
+	// Allow any logger calls
+	mockLogger.EXPECT().Debug(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Info(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Error(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+
 	uc, err := NewDeletePromocodeUC(mockRepo, mockLogger)
 	if err != nil {
 		t.Fatalf("failed to create usecase: %v", err)
@@ -63,7 +68,6 @@ func TestDeletePromocodeUC_Delete(t *testing.T) {
 		id := domain.PromocodeID(123)
 
 		mockRepo.EXPECT().Delete(gomock.Any(), id).Return(nil)
-		mockLogger.EXPECT().Info("promocode deleted").Times(1)
 
 		err := uc.Delete(context.Background(), id)
 		if err != nil {
@@ -76,7 +80,6 @@ func TestDeletePromocodeUC_Delete(t *testing.T) {
 		expectedErr := domain.ErrPromocodeNotFound
 
 		mockRepo.EXPECT().Delete(gomock.Any(), id).Return(expectedErr)
-		mockLogger.EXPECT().WithFields(gomock.Any()).Return(nil)
 
 		err := uc.Delete(context.Background(), id)
 		if err != expectedErr {

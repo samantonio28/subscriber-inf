@@ -47,6 +47,8 @@ type Subscription struct {
 	SubType     SubscriptionType
 	StartDate   time.Time
 	EndDate     time.Time
+	PlanID      int
+	PromocodeID *int
 }
 
 func NewSubscription(
@@ -57,6 +59,8 @@ func NewSubscription(
 	subType string,
 	startDate time.Time,
 	endDate time.Time,
+	planID int,
+	promocodeID *int,
 ) (*Subscription, error) {
 	if subId < 0 {
 		return nil, errors.New("subId must be greater than 0")
@@ -66,6 +70,9 @@ func NewSubscription(
 	}
 	if price < 0 {
 		return nil, errors.New("price must be greater than 0")
+	}
+	if planID <= 0 {
+		return nil, errors.New("planID must be greater than 0")
 	}
 	subtype, err := NewSubscriptionType(subType)
 	if err != nil {
@@ -85,6 +92,8 @@ func NewSubscription(
 		Price:       price,
 		StartDate:   startDate,
 		EndDate:     endDate,
+		PlanID:      planID,
+		PromocodeID: promocodeID,
 	}, nil
 }
 

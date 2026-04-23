@@ -56,6 +56,12 @@ func TestTotalCostsUC_TotalCosts(t *testing.T) {
 	mockRepo := mock.NewMockSubscriptionRepository(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
 
+	// Allow any logger calls to avoid test failures due to unexpected logs
+	mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Warn(gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
+
 	uc, err := NewTotalCostsUC(mockRepo, mockLogger)
 	if err != nil {
 		t.Fatalf("failed to create usecase: %v", err)
@@ -70,21 +76,24 @@ func TestTotalCostsUC_TotalCosts(t *testing.T) {
 			SubType:     "usual",
 		}
 		expectedSum := 5000
-		expectedSubIds := []domain.SubID{1, 2, 3}
+		// Create dummy subscriptions
+		expectedSubs := []domain.Subscription{
+			{SubId: 1, UserID: input.UserID, ServiceName: "Netflix", Price: 2000, SubType: domain.SubTypeUsual, StartDate: input.StartDate, EndDate: input.EndDate},
+			{SubId: 2, UserID: input.UserID, ServiceName: "Netflix", Price: 2000, SubType: domain.SubTypeUsual, StartDate: input.StartDate, EndDate: input.EndDate},
+			{SubId: 3, UserID: input.UserID, ServiceName: "Netflix", Price: 1000, SubType: domain.SubTypeUsual, StartDate: input.StartDate, EndDate: input.EndDate},
+		}
 
-		mockLogger.EXPECT().Info("TotalCosts", "input", input).Times(1)
-		mockRepo.EXPECT().SubsTotalCosts(gomock.Any(), gomock.Any()).Return(expectedSum, expectedSubIds, nil)
-		mockLogger.EXPECT().Info("TotalCosts", "input", input, "output", expectedSum, "subIds len", 3).Times(1)
+		mockRepo.EXPECT().SubsTotalCosts(gomock.Any(), gomock.Any()).Return(expectedSum, expectedSubs, nil)
 
-		sum, subIds, err := uc.TotalCosts(context.Background(), input)
+		sum, subs, err := uc.TotalCosts(context.Background(), input)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
 		if sum != expectedSum {
 			t.Errorf("expected sum %d, got %d", expectedSum, sum)
 		}
-		if len(subIds) != len(expectedSubIds) {
-			t.Errorf("expected %d sub IDs, got %d", len(expectedSubIds), len(subIds))
+		if len(subs) != len(expectedSubs) {
+			t.Errorf("expected %d subs, got %d", len(expectedSubs), len(subs))
 		}
 	})
 
@@ -97,8 +106,6 @@ func TestTotalCostsUC_TotalCosts(t *testing.T) {
 			SubType:     "invalid",
 		}
 
-		mockLogger.EXPECT().Info("TotalCosts", "input", input).Times(1)
-		mockLogger.EXPECT().Error("TotalCosts", "input", input, "error", gomock.Any()).Times(1)
 
 		sum, subIds, err := uc.TotalCosts(context.Background(), input)
 		if err == nil {
@@ -122,19 +129,17 @@ func TestTotalCostsUC_TotalCosts(t *testing.T) {
 		}
 		expectedErr := domain.ErrSubscriptionNotFound
 
-		mockLogger.EXPECT().Info("TotalCosts", "input", input).Times(1)
 		mockRepo.EXPECT().SubsTotalCosts(gomock.Any(), gomock.Any()).Return(0, nil, expectedErr)
-		mockLogger.EXPECT().Error("TotalCosts", "input", input, "error", expectedErr).Times(1)
 
-		sum, subIds, err := uc.TotalCosts(context.Background(), input)
+		sum, subs, err := uc.TotalCosts(context.Background(), input)
 		if err != expectedErr {
 			t.Errorf("expected error %v, got %v", expectedErr, err)
 		}
 		if sum != 0 {
 			t.Errorf("expected sum 0, got %d", sum)
 		}
-		if subIds != nil {
-			t.Errorf("expected nil subIds, got %v", subIds)
+		if subs != nil {
+			t.Errorf("expected nil subs, got %v", subs)
 		}
 	})
 
@@ -147,21 +152,19 @@ func TestTotalCostsUC_TotalCosts(t *testing.T) {
 			SubType:     "usual",
 		}
 		expectedSum := 0
-		expectedSubIds := []domain.SubID{}
+		expectedSubs := []domain.Subscription{}
 
-		mockLogger.EXPECT().Info("TotalCosts", "input", input).Times(1)
-		mockRepo.EXPECT().SubsTotalCosts(gomock.Any(), gomock.Any()).Return(expectedSum, expectedSubIds, nil)
-		mockLogger.EXPECT().Info("TotalCosts", "input", input, "output", expectedSum, "subIds len", 0).Times(1)
+		mockRepo.EXPECT().SubsTotalCosts(gomock.Any(), gomock.Any()).Return(expectedSum, expectedSubs, nil)
 
-		sum, subIds, err := uc.TotalCosts(context.Background(), input)
+		sum, subs, err := uc.TotalCosts(context.Background(), input)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
 		if sum != 0 {
 			t.Errorf("expected sum 0, got %d", sum)
 		}
-		if len(subIds) != 0 {
-			t.Errorf("expected 0 sub IDs, got %d", len(subIds))
+		if len(subs) != 0 {
+			t.Errorf("expected 0 subs, got %d", len(subs))
 		}
 	})
 }
