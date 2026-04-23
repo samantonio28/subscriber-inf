@@ -15,6 +15,8 @@ type SubscriptionDTO struct {
 	SubType     string    `json:"sub_type"`
 	StartDate   time.Time `json:"start_date"`
 	EndDate     time.Time `json:"end_date"`
+	PlanID      int       `json:"plan_id"`
+	PromocodeID *int      `json:"promocode_id,omitempty"`
 }
 
 type SubsFilterDTO struct {
@@ -34,6 +36,8 @@ func SubToDTO(sub domain.Subscription) SubscriptionDTO {
 		SubType:     sub.SubType.String(),
 		StartDate:   sub.StartDate,
 		EndDate:     sub.EndDate,
+		PlanID:      sub.PlanID,
+		PromocodeID: sub.PromocodeID,
 	}
 }
 
@@ -46,6 +50,8 @@ func DTOToSub(dto SubscriptionDTO) (domain.Subscription, error) {
 		dto.SubType,
 		dto.StartDate,
 		dto.EndDate,
+		dto.PlanID,
+		dto.PromocodeID,
 	)
 	if err != nil {
 		return domain.Subscription{}, err

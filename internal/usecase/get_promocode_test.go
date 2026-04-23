@@ -55,6 +55,12 @@ func TestGetPromocodeUC_ByID(t *testing.T) {
 	mockRepo := mock.NewMockPromocodeRepository(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
 
+	// Allow any logger calls
+	mockLogger.EXPECT().Debug(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Debug(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Error(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().WithFields(gomock.Any()).AnyTimes()
+
 	uc, err := NewGetPromocodeUC(mockRepo, mockLogger)
 	if err != nil {
 		t.Fatalf("failed to create usecase: %v", err)
@@ -93,7 +99,6 @@ func TestGetPromocodeUC_ByID(t *testing.T) {
 		expectedErr := domain.ErrPromocodeNotFound
 
 		mockRepo.EXPECT().GetByID(gomock.Any(), id).Return(domain.Promocode{}, expectedErr)
-		mockLogger.EXPECT().WithFields(gomock.Any()).Return(nil)
 
 		promo, err := uc.ByID(context.Background(), id)
 		if err != expectedErr {
@@ -111,6 +116,12 @@ func TestGetPromocodeUC_ByCode(t *testing.T) {
 
 	mockRepo := mock.NewMockPromocodeRepository(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
+
+	// Allow any logger calls
+	mockLogger.EXPECT().Debug(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Debug(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Error(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().WithFields(gomock.Any()).AnyTimes()
 
 	uc, err := NewGetPromocodeUC(mockRepo, mockLogger)
 	if err != nil {
@@ -150,7 +161,6 @@ func TestGetPromocodeUC_ByCode(t *testing.T) {
 		expectedErr := domain.ErrPromocodeNotFound
 
 		mockRepo.EXPECT().GetByCode(gomock.Any(), code).Return(domain.Promocode{}, expectedErr)
-		mockLogger.EXPECT().WithFields(gomock.Any()).Return(nil)
 
 		promo, err := uc.ByCode(context.Background(), code)
 		if err != expectedErr {

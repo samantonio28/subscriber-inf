@@ -29,26 +29,29 @@ func NewSubRepo(p *pgxpool.Pool) (domain.SubscriptionRepository, error) {
 
 const (
 	GetSubById = `
-SELECT sub_id, user_id, service_id, price, sub_type, start_date, end_date 
-FROM subscriptions
-WHERE sub_id = $1;
+SELECT s.sub_id, s.user_id, s.plan_id, s.promocode_id, s.price, s.sub_type, s.start_date, s.end_date,
+       sv.service_name
+FROM subscriptions s
+LEFT JOIN subscription_plans sp ON s.plan_id = sp.plan_id
+LEFT JOIN services sv ON sp.service_id = sv.service_id
+WHERE s.sub_id = $1;
 `
 	GetServiceNameById = `
-SELECT service_name FROM services WHERE service_id = $1;	
+SELECT service_name FROM services WHERE service_id = $1;
 `
 	GetSubByUserId = `
-SELECT sub_id FROM subscriptions WHERE user_id = $1;	
+SELECT sub_id FROM subscriptions WHERE user_id = $1;
 `
 	PutServiceName = `
-INSERT INTO services (service_name) 
+INSERT INTO services (service_name)
 VALUES ($1)
 ON CONFLICT (service_name) DO UPDATE SET service_name = EXCLUDED.service_name
 RETURNING service_id;
 `
 	PutSub = `
 INSERT INTO subscriptions
-(user_id, service_id, price, sub_type, start_date, end_date)
-VALUES ($1, $2, $3, $4, $5, $6)
+(user_id, plan_id, promocode_id, price, sub_type, start_date, end_date)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING sub_id;
 `
 	DeleteSub = `
@@ -56,21 +59,21 @@ DELETE FROM subscriptions WHERE sub_id = $1;
 `
 	// unused
 	GetAllData = `
-SELECT 
+SELECT
     us.sub_id,
     us.user_id,
     s.service_name,
     sub.price,
     sub.start_date,
     sub.end_date
-FROM 
+FROM
     users_subs us
-LEFT JOIN 
+LEFT JOIN
     subscriptions sub ON us.sub_id = sub.sub_id
-LEFT JOIN 
+LEFT JOIN
     services s ON sub.service_id = s.service_id
-ORDER BY 
-    us.sub_id;	
+ORDER BY
+    us.sub_id;
 `
 )
 
@@ -88,15 +91,17 @@ func (s *SubRepo) Sub(ctx context.Context, subId domain.SubID) (domain.Subscript
 	var sub domain.Subscription
 	var subType string
 	var enDate pgtype.Date
-	var serviceId int
+	var promocodeID pgtype.Int4
 	if err := tx.QueryRow(ctx, GetSubById, int(subId)).Scan(
 		&sub.SubId,
 		&sub.UserID,
-		&serviceId,
+		&sub.PlanID,
+		&promocodeID,
 		&sub.Price,
 		&subType,
 		&sub.StartDate,
 		&enDate,
+		&sub.ServiceName,
 	); err != nil {
 		return domain.Subscription{}, err
 	}
@@ -109,10 +114,11 @@ func (s *SubRepo) Sub(ctx context.Context, subId domain.SubID) (domain.Subscript
 	if enDate.Valid {
 		sub.EndDate = enDate.Time
 	}
-
-	if err := tx.QueryRow(ctx, GetServiceNameById, serviceId).Scan(&sub.ServiceName); err != nil {
-		return domain.Subscription{}, err
+	if promocodeID.Valid {
+		p := int(promocodeID.Int32)
+		sub.PromocodeID = &p
 	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return domain.Subscription{}, fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -157,17 +163,16 @@ func (s *SubRepo) StoreSub(ctx context.Context, sub domain.Subscription) (domain
 		}
 	}()
 
-	var serviceId int
-
-	if err := tx.QueryRow(ctx, PutServiceName, sub.ServiceName).Scan(&serviceId); err != nil {
-		return 0, fmt.Errorf("failed to get service_id: %w", err)
-	}
 	var subId int
 	var enDateOrNil any = sub.EndDate
 	if sub.EndDate.IsZero() {
 		enDateOrNil = nil
 	}
-	if err := tx.QueryRow(ctx, PutSub, sub.UserID, serviceId, sub.Price, sub.SubType.String(), sub.StartDate, enDateOrNil).Scan(&subId); err != nil {
+	var promoIDOrNil any = sub.PromocodeID
+	if sub.PromocodeID == nil {
+		promoIDOrNil = nil
+	}
+	if err := tx.QueryRow(ctx, PutSub, sub.UserID, sub.PlanID, promoIDOrNil, sub.Price, sub.SubType.String(), sub.StartDate, enDateOrNil).Scan(&subId); err != nil {
 		return 0, fmt.Errorf("failed to insert sub: %w", err)
 	}
 
@@ -192,13 +197,6 @@ func (s *SubRepo) UpdateSub(ctx context.Context, sub domain.Subscription) error 
 	if err != nil {
 		return fmt.Errorf("sub does not exist: %w", err)
 	}
-
-	serviceId := -1
-	if sub.ServiceName != "" {
-		if err := tx.QueryRow(ctx, PutServiceName, sub.ServiceName).Scan(&serviceId); err != nil {
-			return fmt.Errorf("failed to get service_id: %w", err)
-		}
-	}
 	if sub.UserID == uuid.Nil {
 		return fmt.Errorf("bad data: user_id cannot be nil")
 	}
@@ -210,9 +208,15 @@ func (s *SubRepo) UpdateSub(ctx context.Context, sub domain.Subscription) error 
 	args := []any{}
 	argPos := 1
 
-	if serviceId != -1 {
-		query += fmt.Sprintf(" service_id = $%d,", argPos)
-		args = append(args, serviceId)
+	if sub.PlanID != 0 {
+		query += fmt.Sprintf(" plan_id = $%d,", argPos)
+		args = append(args, sub.PlanID)
+		argPos++
+	}
+
+	if sub.PromocodeID != nil {
+		query += fmt.Sprintf(" promocode_id = $%d,", argPos)
+		args = append(args, *sub.PromocodeID)
 		argPos++
 	}
 
