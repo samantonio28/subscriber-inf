@@ -833,6 +833,109 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
 
+  /users:
+    post:
+      tags:
+      - users
+      summary: Create a new user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                    format: uuid
+                    example: "123e4567-e89b-12d3-a456-426614174000"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /users/{user_id}:
+    get:
+      tags:
+      - users
+      summary: Get user by ID
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /subscriptions/purchase:
+    post:
+      tags:
+      - subscriptions
+      summary: Purchase a subscription
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseSubscriptionRequest'
+        required: true
+      responses:
+        '201':
+          description: Subscription purchased successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscription_id:
+                    type: integer
+                    example: 123
+        '400':
+          description: Invalid input or insufficient balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
 components:
   schemas:
     ApiResponse:
@@ -1022,6 +1125,12 @@ components:
         name:
           type: string
           example: "Premium Monthly"
+        service_name:
+          type: string
+          example: "Premium"
+        sub_type:
+          type: string
+          example: "Monthly"
         duration_days:
           type: integer
           example: 30
@@ -1029,3 +1138,78 @@ components:
           type: integer
           format: int64
           example: 2999
+    User:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        password:
+          type: string
+        user_name:
+          type: string
+        age:
+          type: integer
+          minimum: 0
+        balance:
+          type: integer
+          minimum: 0
+        refferal_code:
+          type: string
+          nullable: true
+      required:
+        - user_id
+        - email
+        - password
+        - user_name
+        - age
+        - balance
+    UserResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        user_name:
+          type: string
+        age:
+          type: integer
+          minimum: 0
+        balance:
+          type: integer
+          minimum: 0
+        refferal_code:
+          type: string
+          nullable: true
+      required:
+        - user_id
+        - email
+        - user_name
+        - age
+        - balance
+    PurchaseSubscriptionRequest:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        service_name:
+          type: string
+        plan_id:
+          type: integer
+        price:
+          type: integer
+          minimum: 0
+        duration_days:
+          type: integer
+          minimum: 1
+      required:
+        - user_id
+        - service_name
+        - plan_id
+        - price
+        - duration_days

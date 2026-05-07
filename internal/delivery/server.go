@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/oapi-codegen/runtime/types"
 	"github.com/samantonio28/subscriber-inf/internal/api"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	"github.com/samantonio28/subscriber-inf/internal/logger"
@@ -39,6 +40,10 @@ type SubsServer struct {
 	// Filtering usecases
 	GetFilteredPromocodesUC        usecase.GetFilteredPromocodesUC
 	GetFilteredSubscriptionPlansUC usecase.GetFilteredSubscriptionPlansUC
+	// New usecases for Lab8
+	CreateUserUC                   usecase.CreateUserUC
+	PurchaseSubscriptionUC         usecase.PurchaseSubscriptionUC
+	GetUserUC                      usecase.GetUserUC
 	logger                         *logger.LogrusLogger
 }
 
@@ -47,6 +52,8 @@ func NewSubsServer(
 	promoRepo domain.PromocodeRepository,
 	planRepo domain.SubscriptionPlanRepository,
 	statsService domain.StatsService,
+	userRepo domain.UserRepository,
+	paymentRepo domain.PaymentRepository,
 	logger *logger.LogrusLogger,
 ) (*SubsServer, error) {
 	createSubUC, err := usecase.NewCreateSubUC(repo, logger)
@@ -128,6 +135,19 @@ func NewSubsServer(
 		return nil, fmt.Errorf("failed to create DeleteSubscriptionPlanUC: %w", err)
 	}
 
+	createUserUC, err := usecase.NewCreateUserUC(userRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CreateUserUC: %w", err)
+	}
+	purchaseSubscriptionUC, err := usecase.NewPurchaseSubscriptionUC(userRepo, repo, paymentRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PurchaseSubscriptionUC: %w", err)
+	}
+	getUserUC, err := usecase.NewGetUserUC(userRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GetUserUC: %w", err)
+	}
+
 	return &SubsServer{
 		CreateSubUC:  *createSubUC,
 		DeleteSubUC:  *deleteSubUC,
@@ -151,6 +171,10 @@ func NewSubsServer(
 		// Filtering
 		GetFilteredPromocodesUC:        *getFilteredPromosUC,
 		GetFilteredSubscriptionPlansUC: *getFilteredPlansUC,
+
+		CreateUserUC:                   *createUserUC,
+		PurchaseSubscriptionUC:         *purchaseSubscriptionUC,
+		GetUserUC:                      *getUserUC,
 		logger:                         logger,
 	}, nil
 }
@@ -277,6 +301,115 @@ func (s *SubsServer) DeleteSubscriptionsId(w http.ResponseWriter, r *http.Reques
 	}
 
 	utils.MakeResponse(w, http.StatusNoContent, nil)
+}
+
+func (s *SubsServer) PostUsers(w http.ResponseWriter, r *http.Request) {
+	var req api.User
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "invalid json",
+		})
+		return
+	}
+
+	dto := usecase.UserDTO{
+		UserID:       req.UserId,
+		Email:        req.Email,
+		Password:     req.Password,
+		UserName:     req.UserName,
+		Age:          int(req.Age),
+		Balance:      int(req.Balance),
+		RefferalCode: req.RefferalCode,
+	}
+
+	userID, err := s.CreateUserUC.NewUser(r.Context(), dto)
+	if err != nil {
+		if errors.Is(err, domain.ErrUserAlreadyExists) {
+			utils.MakeResponse(w, http.StatusConflict, map[string]string{
+				"message": "user already exists",
+			})
+			return
+		}
+		s.logger.Error("failed to create user", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"message": "failed to create user: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusCreated, map[string]string{
+		"message": fmt.Sprintf("new user_id: %s", userID),
+	})
+}
+
+func (s *SubsServer) GetUsersUserId(w http.ResponseWriter, r *http.Request, userId types.UUID) {
+	dto, err := s.GetUserUC.UserById(r.Context(), userId)
+	if err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"message": "user not found",
+			})
+			return
+		}
+		s.logger.Error("failed to get user", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"message": "failed to get user: " + err.Error(),
+		})
+		return
+	}
+
+	resp := api.UserResponse{
+		UserId:       dto.UserID,
+		Email:        dto.Email,
+		UserName:     dto.UserName,
+		Age:          int(dto.Age),
+		Balance:      int(dto.Balance),
+		RefferalCode: dto.RefferalCode,
+	}
+	utils.MakeResponse(w, http.StatusOK, resp)
+}
+
+func (s *SubsServer) PostSubscriptionsPurchase(w http.ResponseWriter, r *http.Request) {
+	var req api.PurchaseSubscriptionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"message": "invalid json",
+		})
+		return
+	}
+
+	dto := usecase.PurchaseSubscriptionDTO{
+		UserID:       req.UserId,
+		ServiceName:  req.ServiceName,
+		PlanID:       int(req.PlanId),
+		Price:        int(req.Price),
+		DurationDays: int(req.DurationDays),
+	}
+
+	subId, err := s.PurchaseSubscriptionUC.Purchase(r.Context(), dto)
+	if err != nil {
+		if errors.Is(err, domain.ErrInsufficientBalance) {
+			utils.MakeResponse(w, http.StatusPaymentRequired, map[string]string{
+				"message": "insufficient balance",
+			})
+			return
+		}
+		if errors.Is(err, domain.ErrUserNotFound) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"message": "user not found",
+			})
+			return
+		}
+		s.logger.Error("failed to purchase subscription", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"message": "failed to purchase subscription: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusOK, map[string]string{
+		"message": fmt.Sprintf("subscription purchased successfully, sub_id: %d", subId),
+	})
 }
 
 // PutPromocodesId updates an existing promocode
@@ -865,7 +998,8 @@ func (s *SubsServer) GetSubscriptionPlansId(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	utils.MakeResponse(w, http.StatusOK, plan)
+	dto := usecase.SubscriptionPlanToDTO(plan)
+	utils.MakeResponse(w, http.StatusOK, dto)
 }
 
 func (s *SubsServer) PutSubscriptionPlansId(w http.ResponseWriter, r *http.Request, id int) {

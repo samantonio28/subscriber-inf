@@ -32,7 +32,7 @@ func NewGetFilteredSubscriptionPlansUC(planRepo domain.SubscriptionPlanRepositor
 	return &GetFilteredSubscriptionPlansUC{planRepo: planRepo, logger: logger}, nil
 }
 
-func (uc *GetFilteredSubscriptionPlansUC) GetFiltered(ctx context.Context, filter SubscriptionPlanFilter) ([]domain.SubscriptionPlan, error) {
+func (uc *GetFilteredSubscriptionPlansUC) GetFiltered(ctx context.Context, filter SubscriptionPlanFilter) ([]SubscriptionPlanDTO, error) {
 	// Получить все планы
 	all, err := uc.planRepo.GetAll(ctx)
 	if err != nil {
@@ -64,5 +64,10 @@ func (uc *GetFilteredSubscriptionPlansUC) GetFiltered(ctx context.Context, filte
 		filtered = append(filtered, plan)
 	}
 
-	return filtered, nil
+	// Преобразовать в DTO
+	result := make([]SubscriptionPlanDTO, len(filtered))
+	for i, plan := range filtered {
+		result[i] = SubscriptionPlanToDTO(plan)
+	}
+	return result, nil
 }

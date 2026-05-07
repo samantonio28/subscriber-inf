@@ -50,6 +50,16 @@ func App(redisClient *redis.Client) {
 		log.Fatal("Failed to create subscription plan repo:", err)
 	}
 
+	userRepo, err := service.NewUserRepo(pool)
+	if err != nil {
+		log.Fatal("Failed to create user repo:", err)
+	}
+
+	paymentRepo, err := service.NewPaymentRepo(pool)
+	if err != nil {
+		log.Fatal("Failed to create payment repo:", err)
+	}
+
 	statsService, err := service.NewStatsService(pool, redisClient)
 	if err != nil {
 		log.Fatal("Failed to create stats repo:", err)
@@ -61,7 +71,7 @@ func App(redisClient *redis.Client) {
 		return
 	}
 
-	serverImpl, err := NewSubsServer(repo, promoRepo, planRepo, statsService, logger)
+	serverImpl, err := NewSubsServer(repo, promoRepo, planRepo, statsService, userRepo, paymentRepo, logger)
 	if err != nil {
 		log.Fatal("Failed to create server implementation:", err)
 	}

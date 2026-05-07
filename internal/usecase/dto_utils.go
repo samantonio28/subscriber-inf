@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -138,4 +139,111 @@ func DTOToPromocode(dto PromocodeDTO) (domain.Promocode, error) {
 		return domain.Promocode{}, err
 	}
 	return *promo, nil
+}
+
+type UserDTO struct {
+	UserID       uuid.UUID `json:"user_id"`
+	Email        string    `json:"email"`
+	Password     string    `json:"password"`
+	UserName     string    `json:"user_name"`
+	Age          int       `json:"age"`
+	Balance      int       `json:"balance"`
+	RefferalCode *string   `json:"refferal_code"`
+}
+
+type GetUserDTO struct {
+	UserID       uuid.UUID `json:"user_id"`
+	Email        string    `json:"email"`
+	UserName     string    `json:"user_name"`
+	Age          int       `json:"age"`
+	Balance      int       `json:"balance"`
+	RefferalCode *string   `json:"refferal_code"`
+}
+
+func UserToDTO(user domain.User) UserDTO {
+	return UserDTO{
+		UserID:       user.UserID,
+		Email:        user.Email,
+		Password:     user.Password,
+		UserName:     user.UserName,
+		Age:          user.Age,
+		Balance:      user.Balance,
+		RefferalCode: user.ReferralCode,
+	}
+}
+
+func UserToGetUserDTO(user domain.User) GetUserDTO {
+	return GetUserDTO{
+		UserID:       user.UserID,
+		Email:        user.Email,
+		UserName:     user.UserName,
+		Age:          user.Age,
+		Balance:      user.Balance,
+		RefferalCode: user.ReferralCode,
+	}
+}
+
+func DTOToUser(dto UserDTO) (domain.User, error) {
+	user, err := domain.NewUser(
+		dto.UserID,
+		dto.Email,
+		dto.Password,
+		dto.UserName,
+		dto.Age,
+		dto.Balance,
+		nil,
+	)
+	if err != nil {
+		return domain.User{}, err
+	}
+	return *user, nil
+}
+
+type SubscriptionPlanDTO struct {
+	PlanID       int    `json:"plan_id"`
+	ServiceID    int    `json:"service_id"`
+	Name         string `json:"name"`
+	ServiceName  string `json:"service_name"`
+	SubType      string `json:"sub_type"`
+	DurationDays int    `json:"duration_days"`
+	Price        int    `json:"price"`
+}
+
+func SubscriptionPlanToDTO(plan domain.SubscriptionPlan) SubscriptionPlanDTO {
+	// Разделить Name на ServiceName и SubType по последнему пробелу
+	name := plan.Name
+	lastSpace := strings.LastIndex(name, " ")
+	var serviceName, subType string
+	if lastSpace > 0 {
+		serviceName = name[:lastSpace]
+		subType = name[lastSpace+1:]
+	} else {
+		serviceName = name
+		subType = ""
+	}
+	return SubscriptionPlanDTO{
+		PlanID:       int(plan.PlanID),
+		ServiceID:    plan.ServiceID,
+		Name:         name,
+		ServiceName:  serviceName,
+		SubType:      subType,
+		DurationDays: plan.DurationDays,
+		Price:        plan.Price,
+	}
+}
+
+type PurchaseSubscriptionDTO struct {
+	UserID       uuid.UUID `json:"user_id"`
+	ServiceName  string    `json:"service_name"`
+	PlanID       int       `json:"plan_id"`
+	Price        int       `json:"price"`
+	DurationDays int       `json:"duration_days"`
+}
+
+type PaymentDTO struct {
+	PaymentID   int       `json:"payment_id"`
+	UserID      uuid.UUID `json:"user_id"`
+	CardNumber  string    `json:"card_number"`
+	Amount      int       `json:"amount"`
+	PaymentType string    `json:"payment_type"`
 }

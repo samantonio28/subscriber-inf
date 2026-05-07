@@ -6,10 +6,14 @@ var (
 	ErrInvalidSubRepo      = errors.New("subscription repository not defined")
 	ErrInvalidSubPlanRepo  = errors.New("subscription plan repository not defined")
 	ErrInvalidPromoRepo    = errors.New("promocode repository not defined")
+	ErrInvalidUserRepo     = errors.New("user repository not defined")
+	ErrInvalidPaymentRepo  = errors.New("payment repository not defined")
 	ErrInvalidStatsService = errors.New("stats service not defined")
 	ErrInvalidLogger       = errors.New("logger is not defined")
 	ErrInvalidInput        = errors.New("invalid input")
 
+	ErrUserNotFound             = errors.New("user not found")
+	ErrUserAlreadyExists        = errors.New("user already exists")
 	ErrPromocodeNotFound        = errors.New("promocode not found")
 	ErrSubscriptionPlanNotFound = errors.New("subscription plan not found")
 	ErrSubscriptionNotFound     = errors.New("subscription not found")
@@ -28,4 +32,7 @@ var (
 	ErrSubscriptionAlreadyHasPromocode = errors.New("subscription already has promocode type")
 	ErrPromocodeNotForNewSubscription  = errors.New("promocode cannot be applied to new subscription")
 	ErrPromocodeNotForRenewal          = errors.New("promocode cannot be applied to renewal")
+
+	// Payment errors
+	ErrInsufficientBalance = errors.New("insufficient balance")
 )
