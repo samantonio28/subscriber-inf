@@ -1,4 +1,4 @@
-package sqlite
+package mysql
 
 import (
 	"context"
@@ -25,7 +25,6 @@ const (
 	storePaymentQuery = `
 INSERT INTO payments (user_id, card_number, amount, paym_type)
 VALUES (?, ?, ?, ?)
-RETURNING paym_id;
 `
 	getUserPaymentsQuery = `
 SELECT paym_id, user_id, card_number, amount, paym_type
@@ -36,17 +35,19 @@ ORDER BY paym_id;
 )
 
 func (r *PaymentRepo) StorePayment(ctx context.Context, payment domain.Payment) error {
-	var paymentID int
-	err := r.db.QueryRowContext(ctx, storePaymentQuery,
+	result, err := r.db.ExecContext(ctx, storePaymentQuery,
 		payment.UserID,
 		payment.CardNumber,
 		payment.Amount,
 		payment.PaymentType,
-	).Scan(&paymentID)
+	)
 	if err != nil {
 		return fmt.Errorf("failed to store payment: %w", err)
 	}
-	// payment.PaymentID already set? we can assign if needed
+	_, err = result.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("failed to get last insert id: %w", err)
+	}
 	return nil
 }
 
@@ -61,12 +62,16 @@ func (r *PaymentRepo) GetUserPayments(ctx context.Context, userID uuid.UUID) ([]
 	for rows.Next() {
 		var p domain.Payment
 		var paymType string
-		var cardNumber *string
+		var cardNumber sql.NullString
 		err := rows.Scan(&p.PaymentID, &p.UserID, &cardNumber, &p.Amount, &paymType)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan payment row: %w", err)
 		}
-		p.CardNumber = cardNumber
+		if cardNumber.Valid {
+			p.CardNumber = &cardNumber.String
+		} else {
+			p.CardNumber = nil
+		}
 		p.PaymentType = domain.PaymentType(paymType)
 		p.CreatedAt = time.Time{} // not stored
 		payments = append(payments, p)

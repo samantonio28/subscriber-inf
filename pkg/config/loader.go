@@ -23,3 +23,17 @@ func LoadConfig(path string) (*Config, error) {
 
 	return &cfg, nil
 }
+
+func LoadDatabaseConfig(path string) (*DatabaseConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg DatabaseConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}

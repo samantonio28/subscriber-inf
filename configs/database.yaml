@@ -1,5 +1,5 @@
 # Database configuration
-type: postgres  # or sqlite
+type: mysql  # or sqlite or mysql
 postgres:
   host: "localhost"
   port: 8001
@@ -14,3 +14,10 @@ postgres:
     max_conn_idle_time: "5m"
 sqlite:
   path: "./data/subscriber.db"
+mysql:
+  host: "localhost"
+  port: 3306
+  user: "root"
+  password: "secret"
+  dbname: "dev"
+  params: "charset=utf8mb4&parseTime=True&loc=Local"

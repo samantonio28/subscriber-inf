@@ -1,10 +1,11 @@
-package sqlite
+package mysql
 
 import (
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,13 +27,13 @@ const (
 	storeUserQuery = `
 INSERT INTO users (user_id, email, password, user_name, age, balance, referral_code)
 VALUES (?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (user_id) DO UPDATE SET
-	email = excluded.email,
-	password = excluded.password,
-	user_name = excluded.user_name,
-	age = excluded.age,
-	balance = excluded.balance,
-	referral_code = excluded.referral_code;
+ON DUPLICATE KEY UPDATE
+	email = VALUES(email),
+	password = VALUES(password),
+	user_name = VALUES(user_name),
+	age = VALUES(age),
+	balance = VALUES(balance),
+	referral_code = VALUES(referral_code);
 `
 	getUserQuery = `
 SELECT user_id, email, password, user_name, age, balance, referral_code
@@ -52,7 +53,7 @@ WHERE referral_code = ?;
 	storeReferralQuery = `
 INSERT INTO user_referrals (referrer_id, referred_id)
 VALUES (?, ?)
-ON CONFLICT (referred_id) DO NOTHING;
+ON DUPLICATE KEY UPDATE referred_id = VALUES(referred_id);
 `
 )
 
@@ -74,7 +75,7 @@ func (r *UserRepo) StoreUser(ctx context.Context, user domain.User) error {
 
 func (r *UserRepo) GetUser(ctx context.Context, userID uuid.UUID) (domain.User, error) {
 	var user domain.User
-	var referralCode *string
+	var referralCode sql.NullString
 	err := r.db.QueryRowContext(ctx, getUserQuery, userID).Scan(
 		&user.UserID,
 		&user.Email,
@@ -90,7 +91,11 @@ func (r *UserRepo) GetUser(ctx context.Context, userID uuid.UUID) (domain.User, 
 		}
 		return domain.User{}, fmt.Errorf("failed to get user: %w", err)
 	}
-	user.ReferralCode = referralCode
+	if referralCode.Valid {
+		user.ReferralCode = &referralCode.String
+	} else {
+		user.ReferralCode = nil
+	}
 	// CreatedAt and UpdatedAt are not stored, set to zero values
 	user.CreatedAt = time.Time{}
 	user.UpdatedAt = time.Time{}
@@ -98,7 +103,17 @@ func (r *UserRepo) GetUser(ctx context.Context, userID uuid.UUID) (domain.User, 
 }
 
 func (r *UserRepo) UpdateUser(ctx context.Context, user domain.User) error {
-	result, err := r.db.ExecContext(ctx, updateUserQuery,
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			log.Printf("failed to rollback transaction: %v", err)
+		}
+	}()
+
+	_, err = tx.ExecContext(ctx, updateUserQuery,
 		user.Email,
 		user.Password,
 		user.UserName,
@@ -110,19 +125,16 @@ func (r *UserRepo) UpdateUser(ctx context.Context, user domain.User) error {
 	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
 	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
-	}
-	if rowsAffected == 0 {
-		return domain.ErrUserNotFound
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 	return nil
 }
 
 func (r *UserRepo) GetUserByReferralCode(ctx context.Context, referralCode string) (domain.User, error) {
 	var user domain.User
-	var refCode *string
+	var refCode sql.NullString
 	err := r.db.QueryRowContext(ctx, getUserByReferralCodeQuery, referralCode).Scan(
 		&user.UserID,
 		&user.Email,
@@ -138,7 +150,11 @@ func (r *UserRepo) GetUserByReferralCode(ctx context.Context, referralCode strin
 		}
 		return domain.User{}, fmt.Errorf("failed to get user by referral code: %w", err)
 	}
-	user.ReferralCode = refCode
+	if refCode.Valid {
+		user.ReferralCode = &refCode.String
+	} else {
+		user.ReferralCode = nil
+	}
 	user.CreatedAt = time.Time{}
 	user.UpdatedAt = time.Time{}
 	return user, nil

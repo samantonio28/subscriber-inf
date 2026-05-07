@@ -2,22 +2,58 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"math/rand"
+	"strings"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/google/uuid"
 	"github.com/icrowley/fake"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/samantonio28/subscriber-inf/internal/logger"
-	"github.com/samantonio28/subscriber-inf/internal/service"
-	"github.com/samantonio28/subscriber-inf/internal/usecase"
 	"github.com/samantonio28/subscriber-inf/pkg/config"
 )
 
+// DBType constants
+const (
+	DBTypePostgres = "postgres"
+	DBTypeMySQL    = "mysql"
+)
+
+// adaptQuery converts PostgreSQL-style placeholders $1, $2, ... to ? for MySQL.
+// Also handles RETURNING clause for MySQL (use SELECT LAST_INSERT_ID()).
+func adaptQuery(query string, dbType string) string {
+	if dbType == DBTypeMySQL {
+		// Replace $1, $2, ... with ?
+		for i := 1; strings.Contains(query, fmt.Sprintf("$%d", i)); i++ {
+			query = strings.ReplaceAll(query, fmt.Sprintf("$%d", i), "?")
+		}
+		// Replace RETURNING ... with SELECT LAST_INSERT_ID()
+		if strings.Contains(strings.ToUpper(query), "RETURNING") {
+			// Simple replacement: assume returning a single column (like service_id, plan_id)
+			// We'll capture the column name and later use sql.Result.LastInsertId
+			// For simplicity, we remove RETURNING clause and rely on LastInsertId.
+			// This requires the query to be executed with sql.Exec and then retrieving LastInsertId.
+			// We'll handle this in the calling code.
+			// For now, just remove RETURNING clause.
+			start := strings.Index(strings.ToUpper(query), "RETURNING")
+			end := len(query)
+			for j := start; j < len(query); j++ {
+				if query[j] == ')' || query[j] == ' ' && j > start+9 {
+					end = j
+					break
+				}
+			}
+			query = query[:start] + query[end:]
+		}
+	}
+	return query
+}
+
 // addUsers добавляет 1000 пользователей и создает реферальные связи
-func addUsers(pool *pgxpool.Pool) ([]uuid.UUID, error) {
+func addUsers(db *sql.DB, dbType string) ([]uuid.UUID, error) {
 	userIDs := make([]uuid.UUID, 0, 1000)
 
 	for i := range 1000 {
@@ -33,10 +69,12 @@ func addUsers(pool *pgxpool.Pool) ([]uuid.UUID, error) {
 		age := 18 + rand.Intn(50)
 		balance := rand.Intn(10000)
 
-		_, err := pool.Exec(context.Background(), `
+		query := `
 			INSERT INTO users (user_id, email, password, user_name, age, balance)
 			VALUES ($1, $2, $3, $4, $5, $6)
-		`, userID, email, password, userName, age, balance)
+		`
+		query = adaptQuery(query, dbType)
+		_, err := db.ExecContext(context.Background(), query, userID, email, password, userName, age, balance)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to insert user %d: %w", i, err)
@@ -46,7 +84,7 @@ func addUsers(pool *pgxpool.Pool) ([]uuid.UUID, error) {
 	log.Printf("Added %d users", len(userIDs))
 
 	// Теперь создаем реферальные связи
-	if err := addReferrals(pool, userIDs); err != nil {
+	if err := addReferrals(db, dbType, userIDs); err != nil {
 		return nil, fmt.Errorf("failed to add referrals: %w", err)
 	}
 
@@ -54,7 +92,7 @@ func addUsers(pool *pgxpool.Pool) ([]uuid.UUID, error) {
 }
 
 // addReferrals создает реферальные связи для случайных пользователей
-func addReferrals(pool *pgxpool.Pool, userIDs []uuid.UUID) error {
+func addReferrals(db *sql.DB, dbType string, userIDs []uuid.UUID) error {
 	// Выбираем 50 случайных пользователей, которые будут приглашать других
 	referrers := make([]uuid.UUID, 50)
 	for i := range referrers {
@@ -79,9 +117,11 @@ func addReferrals(pool *pgxpool.Pool, userIDs []uuid.UUID) error {
 
 			// Проверяем, чтобы пользователь не был уже чьим-то рефералом
 			var exists bool
-			err := pool.QueryRow(context.Background(), `
+			query := `
 				SELECT EXISTS(SELECT 1 FROM user_referrals WHERE referred_id = $1)
-			`, referredID).Scan(&exists)
+			`
+			query = adaptQuery(query, dbType)
+			err := db.QueryRowContext(context.Background(), query, referredID).Scan(&exists)
 
 			if err != nil {
 				return fmt.Errorf("failed to check referral existence: %w", err)
@@ -92,10 +132,12 @@ func addReferrals(pool *pgxpool.Pool, userIDs []uuid.UUID) error {
 			}
 
 			// Добавляем реферальную связь
-			_, err = pool.Exec(context.Background(), `
+			query = `
 				INSERT INTO user_referrals (referrer_id, referred_id, created_at)
 				VALUES ($1, $2, $3)
-			`, referrerID, referredID, time.Now().Add(-time.Duration(rand.Intn(365))*24*time.Hour))
+			`
+			query = adaptQuery(query, dbType)
+			_, err = db.ExecContext(context.Background(), query, referrerID, referredID, time.Now().Add(-time.Duration(rand.Intn(365))*24*time.Hour))
 
 			if err != nil {
 				log.Printf("Warning: failed to insert referral: %v", err)
@@ -108,7 +150,7 @@ func addReferrals(pool *pgxpool.Pool, userIDs []uuid.UUID) error {
 	log.Printf("Added %d referral relationships", referralCount)
 
 	// Логируем статистику
-	if err := logReferralStats(pool); err != nil {
+	if err := logReferralStats(db, dbType); err != nil {
 		return fmt.Errorf("failed to log referral stats: %w", err)
 	}
 
@@ -116,16 +158,18 @@ func addReferrals(pool *pgxpool.Pool, userIDs []uuid.UUID) error {
 }
 
 // logReferralStats логирует статистику по рефералам
-func logReferralStats(pool *pgxpool.Pool) error {
+func logReferralStats(db *sql.DB, dbType string) error {
 	// Топ пользователей по количеству приглашенных
-	rows, err := pool.Query(context.Background(), `
+	query := `
 		SELECT u.user_name, COUNT(ur.referred_id) as referral_count
 		FROM users u
 		JOIN user_referrals ur ON u.user_id = ur.referrer_id
 		GROUP BY u.user_id, u.user_name
 		ORDER BY referral_count DESC
 		LIMIT 10
-	`)
+	`
+	// No placeholders, no adaptation needed
+	rows, err := db.QueryContext(context.Background(), query)
 	if err != nil {
 		return err
 	}
@@ -159,7 +203,7 @@ func generatePlanName(serviceName string, durationDays int) string {
 }
 
 // addServices добавляет сервисы и возвращает ID сервисов и ID планов
-func addServices(pool *pgxpool.Pool) (serviceIDs []int, planIDs []int, err error) {
+func addServices(db *sql.DB, dbType string) (serviceIDs []int, planIDs []int, err error) {
 	services := []struct {
 		name       string
 		duration   int
@@ -181,65 +225,41 @@ func addServices(pool *pgxpool.Pool) (serviceIDs []int, planIDs []int, err error
 	serviceIDs = make([]int, 0, len(services))
 	planIDs = make([]int, 0, len(services))
 
-	// Убедимся, что необходимые таблицы существуют (на случай, если миграции не применились)
-	_, err = pool.Exec(context.Background(), `
-		CREATE TABLE IF NOT EXISTS services (
-			service_id INTEGER GENERATED ALWAYS AS IDENTITY,
-			service_name VARCHAR,
-			sub_duration_id_default INTEGER,
-			users_count INTEGER,
-			has_promocodes BOOLEAN
-		)
-	`)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to ensure services table: %w", err)
-	}
-
-	_, err = pool.Exec(context.Background(), `
-		CREATE TABLE IF NOT EXISTS sub_durations (
-			sub_duration_id INTEGER GENERATED BY DEFAULT AS IDENTITY,
-			service_id INTEGER,
-			duration_days INTEGER
-		)
-	`)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to ensure sub_durations table: %w", err)
-	}
-
-	_, err = pool.Exec(context.Background(), `
-		CREATE TABLE IF NOT EXISTS subscription_plans (
-			plan_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-			service_id INTEGER NOT NULL,
-			duration_days INTEGER NOT NULL CHECK (duration_days > 0),
-			name VARCHAR(255) NOT NULL,
-			price INTEGER NOT NULL CHECK (price > 0),
-			UNIQUE (service_id, duration_days, price)
-		)
-	`)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to ensure subscription_plans table: %w", err)
-	}
-
 	for _, service := range services {
-		var serviceID int
-		err := pool.QueryRow(context.Background(), `
+		var serviceID int64
+		query := `
 			INSERT INTO services (service_name, sub_duration_id_default, users_count, has_promocodes)
 			VALUES ($1, $2, $3, $4)
-			RETURNING service_id
-		`, service.name, 1, service.usersCount, service.hasPromo).Scan(&serviceID)
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to insert service %s: %w", service.name, err)
+		`
+		if dbType == DBTypePostgres {
+			query += " RETURNING service_id"
+		}
+		query = adaptQuery(query, dbType)
+		if dbType == DBTypePostgres {
+			err := db.QueryRowContext(context.Background(), query, service.name, 1, service.usersCount, service.hasPromo).Scan(&serviceID)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to insert service %s: %w", service.name, err)
+			}
+		} else {
+			res, err := db.ExecContext(context.Background(), query, service.name, 1, service.usersCount, service.hasPromo)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to insert service %s: %w", service.name, err)
+			}
+			serviceID, err = res.LastInsertId()
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get last insert id for service %s: %w", service.name, err)
+			}
 		}
 
-		serviceIDs = append(serviceIDs, serviceID)
+		serviceIDs = append(serviceIDs, int(serviceID))
 
 		// Добавляем продолжительность подписки
-		_, err = pool.Exec(context.Background(), `
+		query = `
 			INSERT INTO sub_durations (service_id, duration_days)
 			VALUES ($1, $2)
-		`, serviceID, service.duration)
-
+		`
+		query = adaptQuery(query, dbType)
+		_, err = db.ExecContext(context.Background(), query, serviceID, service.duration)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to insert sub duration for service %d: %w", serviceID, err)
 		}
@@ -247,41 +267,73 @@ func addServices(pool *pgxpool.Pool) (serviceIDs []int, planIDs []int, err error
 		// Добавляем план подписки
 		price := 100 + rand.Intn(4900) // цена от 100 до 4999
 		planName := generatePlanName(service.name, service.duration)
-		var planID int
-		err = pool.QueryRow(context.Background(), `
+		var planID int64
+		query = `
 			INSERT INTO subscription_plans (service_id, duration_days, name, price)
 			VALUES ($1, $2, $3, $4)
-			RETURNING plan_id
-		`, serviceID, service.duration, planName, price).Scan(&planID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to insert subscription plan for service %d: %w", serviceID, err)
+		`
+		if dbType == DBTypePostgres {
+			query += " RETURNING plan_id"
 		}
-		planIDs = append(planIDs, planID)
+		query = adaptQuery(query, dbType)
+		if dbType == DBTypePostgres {
+			err = db.QueryRowContext(context.Background(), query, serviceID, service.duration, planName, price).Scan(&planID)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to insert subscription plan for service %d: %w", serviceID, err)
+			}
+		} else {
+			res, err := db.ExecContext(context.Background(), query, serviceID, service.duration, planName, price)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to insert subscription plan for service %d: %w", serviceID, err)
+			}
+			planID, err = res.LastInsertId()
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get last insert id for plan: %w", err)
+			}
+		}
+		planIDs = append(planIDs, int(planID))
 	}
 
 	log.Printf("Added %d services and %d plans", len(serviceIDs), len(planIDs))
 	return serviceIDs, planIDs, nil
 }
 
-// addSubscriptions добавляет подписки с использованием юзкейса
-func addSubscriptions(pool *pgxpool.Pool, userIDs []uuid.UUID, planIDs []int, createSubUC *usecase.CreateSubUC) ([]int, error) {
+// addSubscriptions добавляет подписки (raw SQL, без юзкейса)
+func addSubscriptions(db *sql.DB, dbType string, userIDs []uuid.UUID, planIDs []int) ([]int, error) {
 	subTypes := []string{"usual", "promocode", "family"}
 	subscriptionIDs := make([]int, 0, 3000)
 
-	// Кэшируем mapping planID -> serviceName для быстрого доступа
-	planServiceMap := make(map[int]string)
+	// Кэшируем mapping planID -> serviceID (для MySQL) или serviceName (для PostgreSQL)
+	planServiceMap := make(map[int]interface{})
 	for _, planID := range planIDs {
-		var serviceName string
-		err := pool.QueryRow(context.Background(), `
-			SELECT s.service_name
-			FROM subscription_plans sp
-			JOIN services s ON sp.service_id = s.service_id
-			WHERE sp.plan_id = $1
-		`, planID).Scan(&serviceName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get service name for plan %d: %w", planID, err)
+		if dbType == DBTypePostgres {
+			var serviceName string
+			query := `
+				SELECT s.service_name
+				FROM subscription_plans sp
+				JOIN services s ON sp.service_id = s.service_id
+				WHERE sp.plan_id = $1
+			`
+			query = adaptQuery(query, dbType)
+			err := db.QueryRowContext(context.Background(), query, planID).Scan(&serviceName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get service name for plan %d: %w", planID, err)
+			}
+			planServiceMap[planID] = serviceName
+		} else {
+			var serviceID int
+			query := `
+				SELECT sp.service_id
+				FROM subscription_plans sp
+				WHERE sp.plan_id = $1
+			`
+			query = adaptQuery(query, dbType)
+			err := db.QueryRowContext(context.Background(), query, planID).Scan(&serviceID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get service id for plan %d: %w", planID, err)
+			}
+			planServiceMap[planID] = serviceID
 		}
-		planServiceMap[planID] = serviceName
 	}
 
 	for i := range 3000 {
@@ -298,49 +350,68 @@ func addSubscriptions(pool *pgxpool.Pool, userIDs []uuid.UUID, planIDs []int, cr
 		endDate = startDate.AddDate(0, rand.Intn(12)+1, 0)
 		endDate = time.Date(endDate.Year(), endDate.Month(), 1, 0, 0, 0, 0, time.UTC)
 
-		serviceName, ok := planServiceMap[planID]
+		serviceVal, ok := planServiceMap[planID]
 		if !ok {
-			return nil, fmt.Errorf("service name not found for plan %d", planID)
+			return nil, fmt.Errorf("service not found for plan %d", planID)
 		}
 
-		// Создаем DTO для подписки
-		dto := usecase.SubscriptionDTO{
-			SubId:       0, // будет сгенерировано
-			UserId:      userID,
-			ServiceName: serviceName,
-			Price:       price,
-			SubType:     subType,
-			StartDate:   startDate,
-			EndDate:     endDate,
-			PlanID:      planID,
-			PromocodeID: nil,
+		// Вставка подписки
+		var subID int64
+		var query string
+		if dbType == DBTypePostgres {
+			query = `
+				INSERT INTO subscriptions (user_id, service_name, price, sub_type, start_date, end_date, plan_id)
+				VALUES ($1, $2, $3, $4, $5, $6, $7)
+			`
+			query += " RETURNING sub_id"
+		} else {
+			query = `
+				INSERT INTO subscriptions (user_id, service_id, price, sub_type, start_date, end_date, plan_id)
+				VALUES ($1, $2, $3, $4, $5, $6, $7)
+			`
 		}
-
-		// Используем юзкейс для создания подписки
-		subID, err := createSubUC.NewSub(context.Background(), dto)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create subscription via usecase %d: %w", i, err)
+		query = adaptQuery(query, dbType)
+		if dbType == DBTypePostgres {
+			err := db.QueryRowContext(context.Background(), query, userID, serviceVal, price, subType, startDate, endDate, planID).Scan(&subID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create subscription %d: %w", i, err)
+			}
+		} else {
+			res, err := db.ExecContext(context.Background(), query, userID, serviceVal, price, subType, startDate, endDate, planID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create subscription %d: %w", i, err)
+			}
+			subID, err = res.LastInsertId()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get last insert id for subscription %d: %w", i, err)
+			}
 		}
-
-		subscriptionIDs = append(subscriptionIDs, subID)
+		subscriptionIDs = append(subscriptionIDs, int(subID))
 	}
 
-	log.Printf("Added %d subscriptions using usecase", len(subscriptionIDs))
+	log.Printf("Added %d subscriptions", len(subscriptionIDs))
 	return subscriptionIDs, nil
 }
 
-// addPromocodes добавляет промокоды с использованием юзкейса
-func addPromocodes(pool *pgxpool.Pool, serviceIDs []int, subscriptionIDs []int, createPromoUC *usecase.CreatePromocodeUC) error {
+// addPromocodes добавляет промокоды (raw SQL, без юзкейса)
+func addPromocodes(db *sql.DB, dbType string, serviceIDs []int, subscriptionIDs []int) error {
 	// Берем только подписки типа promocode
 	var promocodeSubIDs []int
-	err := pool.QueryRow(context.Background(), `
-		SELECT array_agg(sub_id) FROM subscriptions WHERE sub_type = 'promocode'
-	`).Scan(&promocodeSubIDs)
-
+	query := `
+		SELECT sub_id FROM subscriptions WHERE sub_type = 'promocode'
+	`
+	rows, err := db.QueryContext(context.Background(), query)
 	if err != nil {
 		return fmt.Errorf("failed to get promocode subscriptions: %w", err)
 	}
-
+	defer rows.Close()
+	for rows.Next() {
+		var subID int
+		if err := rows.Scan(&subID); err != nil {
+			return fmt.Errorf("failed to scan sub_id: %w", err)
+		}
+		promocodeSubIDs = append(promocodeSubIDs, subID)
+	}
 	if len(promocodeSubIDs) == 0 {
 		log.Println("No promocode subscriptions found")
 		return nil
@@ -360,45 +431,52 @@ func addPromocodes(pool *pgxpool.Pool, serviceIDs []int, subscriptionIDs []int, 
 
 		// Получаем plan_id для данного сервиса
 		var planID int
-		err := pool.QueryRow(context.Background(), `
+		selectQuery := `
 			SELECT plan_id FROM subscription_plans WHERE service_id = $1 LIMIT 1
-		`, serviceID).Scan(&planID)
+		`
+		selectQuery = adaptQuery(selectQuery, dbType)
+		err := db.QueryRowContext(context.Background(), selectQuery, serviceID).Scan(&planID)
 		if err != nil {
 			// Если план не найден, пропускаем или используем дефолтный? Пропустим с логом.
 			log.Printf("Warning: no plan found for service %d, skipping promocode", serviceID)
 			continue
 		}
 
-		// Используем юзкейс для создания промокода
-		input := usecase.CreatePromocodeInput{
-			ServiceID:    serviceID,
-			Value:        promocodeValue,
-			PlanID:       &planID,
-			SubID:        &subID,
-			ExpiresAt:    expiresAt,
-			Discount:     discount,
-			MaxUses:      maxUses,
-			DurationDays: durationDays,
+		// Вставка промокода
+		var query string
+		if dbType == DBTypePostgres {
+			query = `
+				INSERT INTO promocodes (service_id, plan_id, sub_id, value, expires_at, discount, max_uses, duration_days)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			`
+		} else {
+			// MySQL использует столбец promocode вместо value, также добавляем status и cur_uses
+			query = `
+				INSERT INTO promocodes (service_id, plan_id, sub_id, promocode, expires_at, discount, max_uses, duration_days, status, cur_uses)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', 0)
+			`
 		}
-
-		_, err = createPromoUC.Create(context.Background(), input)
+		query = adaptQuery(query, dbType)
+		_, err = db.ExecContext(context.Background(), query, serviceID, planID, subID, promocodeValue, expiresAt, discount, maxUses, durationDays)
 		if err != nil {
-			return fmt.Errorf("failed to create promocode %d via usecase: %w", i, err)
+			return fmt.Errorf("failed to create promocode %d: %w", i, err)
 		}
 	}
 
-	log.Printf("Added %d promocodes using usecase", min(500, len(promocodeSubIDs)))
+	log.Printf("Added %d promocodes", min(500, len(promocodeSubIDs)))
 	return nil
 }
 
 // addCards добавляет карты для пользователей
-func addCards(pool *pgxpool.Pool, userIDs []uuid.UUID) error {
+func addCards(db *sql.DB, dbType string, userIDs []uuid.UUID) error {
 	for i, userID := range userIDs {
 		cardNumber := fake.CreditCardNum("")
-		_, err := pool.Exec(context.Background(), `
+		query := `
 			INSERT INTO cards (user_id, card_number)
 			VALUES ($1, $2)
-		`, userID, cardNumber)
+		`
+		query = adaptQuery(query, dbType)
+		_, err := db.ExecContext(context.Background(), query, userID, cardNumber)
 
 		if err != nil {
 			return fmt.Errorf("failed to insert card for user %d: %w", i, err)
@@ -410,8 +488,8 @@ func addCards(pool *pgxpool.Pool, userIDs []uuid.UUID) error {
 }
 
 // addPayments добавляет платежи
-func addPayments(pool *pgxpool.Pool, userIDs []uuid.UUID) error {
-	rows, err := pool.Query(context.Background(), `
+func addPayments(db *sql.DB, dbType string, userIDs []uuid.UUID) error {
+	rows, err := db.QueryContext(context.Background(), `
 		SELECT user_id, card_number FROM cards
 	`)
 	if err != nil {
@@ -449,15 +527,19 @@ func addPayments(pool *pgxpool.Pool, userIDs []uuid.UUID) error {
 		}
 
 		if cardNumber != nil {
-			_, err = pool.Exec(context.Background(), `
+			query := `
 				INSERT INTO payments (user_id, card_number, amount, paym_type)
 				VALUES ($1, $2, $3, $4)
-			`, userID, *cardNumber, amount, paymType)
+			`
+			query = adaptQuery(query, dbType)
+			_, err = db.ExecContext(context.Background(), query, userID, *cardNumber, amount, paymType)
 		} else {
-			_, err = pool.Exec(context.Background(), `
+			query := `
 				INSERT INTO payments (user_id, amount, paym_type)
 				VALUES ($1, $2, $3)
-			`, userID, amount, paymType)
+			`
+			query = adaptQuery(query, dbType)
+			_, err = db.ExecContext(context.Background(), query, userID, amount, paymType)
 		}
 
 		if err != nil {
@@ -470,85 +552,107 @@ func addPayments(pool *pgxpool.Pool, userIDs []uuid.UUID) error {
 }
 
 func genData() error {
-	cfg, err := config.LoadConfig("../configs/postgres.yaml")
+	// Загружаем конфигурацию базы данных из database.yaml
+	cfg, err := config.LoadDatabaseConfig("../configs/database.yaml")
 	if err != nil {
-		log.Fatal("Failed to load config:", err)
+		log.Fatal("Failed to load database config:", err)
 		return err
 	}
 
-	poolConfig, err := cfg.Postgres.ToPgxPoolConfig()
-	if err != nil {
-		log.Fatal("Failed to create pool config:", err)
+	var db *sql.DB
+	var dbType string
+	switch cfg.Type {
+	case config.DBTypePostgres:
+		dbType = DBTypePostgres
+		connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+			cfg.Postgres.Host, cfg.Postgres.Port, cfg.Postgres.User, cfg.Postgres.Password,
+			cfg.Postgres.DBName, cfg.Postgres.SSLMode)
+		db, err = sql.Open("pgx", connStr)
+		if err != nil {
+			log.Fatal("Failed to connect to PostgreSQL:", err)
+			return err
+		}
+	case config.DBTypeMySQL:
+		dbType = DBTypeMySQL
+		connStr := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?%s",
+			cfg.MySQL.User, cfg.MySQL.Password, cfg.MySQL.Host, cfg.MySQL.Port,
+			cfg.MySQL.DBName, cfg.MySQL.Params)
+		db, err = sql.Open("mysql", connStr)
+		if err != nil {
+			log.Fatal("Failed to connect to MySQL:", err)
+			return err
+		}
+	default:
+		log.Fatal("Unsupported database type:", cfg.Type)
+		return fmt.Errorf("unsupported database type: %s", cfg.Type)
+	}
+	defer db.Close()
+
+	// Проверяем подключение
+	if err := db.Ping(); err != nil {
+		log.Fatal("Failed to ping database:", err)
 		return err
 	}
 
-	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
-	if err != nil {
-		log.Fatal("Failed to connect to PostgreSQL:", err)
-		return err
-	}
-	defer pool.Close()
-
-	log.Println("Successfully connected to PostgreSQL!")
+	log.Printf("Successfully connected to %s!", cfg.Type)
 
 	// Очищаем существующие данные
-	_, err = pool.Exec(context.Background(), `
-		TRUNCATE TABLE payments, promocodes, subscriptions, cards, users, sub_durations, services RESTART IDENTITY CASCADE
-	`)
-	if err != nil {
-		log.Println("Warning: could not truncate tables:", err)
+	if dbType == DBTypePostgres {
+		// Для PostgreSQL используем TRUNCATE ... RESTART IDENTITY
+		truncateQuery := `
+			TRUNCATE TABLE payments, promocodes, subscriptions, cards, user_referrals, users, sub_durations, services, subscription_plans RESTART IDENTITY CASCADE
+		`
+		_, err = db.ExecContext(context.Background(), truncateQuery)
+		if err != nil {
+			log.Println("Warning: could not truncate tables:", err)
+		}
+	} else {
+		// Для MySQL выполняем DELETE FROM каждой таблицы в правильном порядке (с учётом внешних ключей)
+		// Порядок: удаляем дочерние таблицы перед родительскими
+		tables := []string{
+			"payments",
+			"promocodes",
+			"subscriptions",
+			"cards",
+			"user_referrals",
+			"subscription_plans",
+			"sub_durations",
+			"services",
+			"users",
+		}
+		for _, table := range tables {
+			_, err = db.ExecContext(context.Background(), "DELETE FROM "+table)
+			if err != nil {
+				log.Printf("Warning: could not delete from %s: %v", table, err)
+			}
+		}
 	}
 
-	// Инициализация репозиториев и юзкейсов
-	subRepo, err := service.NewSubRepo(pool)
-	if err != nil {
-		return fmt.Errorf("failed to create sub repo: %w", err)
-	}
-
-	promoRepo, err := service.NewPromocodeRepo(pool)
-	if err != nil {
-		return fmt.Errorf("failed to create promocode repo: %w", err)
-	}
-
-	logger, err := logger.NewLogrusLogger("logs/gen_data.log")
-	if err != nil {
-		return fmt.Errorf("failed to create logger: %w", err)
-	}
-
-	createSubUC, err := usecase.NewCreateSubUC(subRepo, logger)
-	if err != nil {
-		return fmt.Errorf("failed to create CreateSubUC: %w", err)
-	}
-
-	createPromoUC, err := usecase.NewCreatePromocodeUC(promoRepo, logger)
-	if err != nil {
-		return fmt.Errorf("failed to create CreatePromocodeUC: %w", err)
-	}
-
-	userIDs, err := addUsers(pool)
+	// Генерация данных
+	userIDs, err := addUsers(db, dbType)
 	if err != nil {
 		return fmt.Errorf("error adding users: %w", err)
 	}
 
-	serviceIDs, planIDs, err := addServices(pool)
+	serviceIDs, planIDs, err := addServices(db, dbType)
 	if err != nil {
 		return fmt.Errorf("error adding services: %w", err)
 	}
 
-	subscriptionIDs, err := addSubscriptions(pool, userIDs, planIDs, createSubUC)
+	subscriptionIDs, err := addSubscriptions(db, dbType, userIDs, planIDs)
 	if err != nil {
 		return fmt.Errorf("error adding subscriptions: %w", err)
 	}
 
-	if err := addCards(pool, userIDs); err != nil {
+	if err := addCards(db, dbType, userIDs); err != nil {
 		return fmt.Errorf("error adding cards: %w", err)
 	}
 
-	if err := addPromocodes(pool, serviceIDs, subscriptionIDs, createPromoUC); err != nil {
+	if err := addPromocodes(db, dbType, serviceIDs, subscriptionIDs); err != nil {
 		return fmt.Errorf("error adding promocodes: %w", err)
 	}
 
-	if err := addPayments(pool, userIDs); err != nil {
+	if err := addPayments(db, dbType, userIDs); err != nil {
 		return fmt.Errorf("error adding payments: %w", err)
 	}
 
