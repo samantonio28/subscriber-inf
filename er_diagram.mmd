@@ -1,0 +1,94 @@
+```mermaid
+erDiagram
+
+    users ||--o{ cards : "имеет"
+    users ||--o{ payments : "имеет"
+    cards ||--o{ payments : "имеет"
+    services ||--o{ promocodes : "имеет"
+    subscriptions ||--o{ promocodes : "имеет"
+    subscription_plans ||--o{ promocodes : "имеет"
+    services ||--o{ sub_durations : "имеет"
+    services ||--|| subscription_plans : "связана"
+    users ||--o{ subscriptions : "имеет"
+    subscription_plans ||--o{ subscriptions : "имеет"
+    promocodes ||--o{ subscriptions : "имеет"
+    users ||--o{ user_referrals : "имеет"
+    users ||--|| user_referrals : "связана"
+
+    cards {
+        uuid user_id FK
+        character varying card_number PK
+    }
+
+    payments {
+        integer paym_id PK
+        uuid user_id FK
+        character varying card_number FK
+        integer amount
+        USER-DEFINED paym_type
+    }
+
+    promocodes {
+        integer promocode_id PK
+        integer service_id FK
+        character varying promocode
+        integer sub_id FK
+        timestamp without time zone created_at
+        integer discount
+        integer max_uses
+        integer cur_uses
+        USER-DEFINED status
+        integer duration_days
+        integer plan_id FK
+        timestamp without time zone expires_at
+    }
+
+    services {
+        integer service_id PK
+        character varying service_name
+        integer sub_duration_id_default
+        integer users_count
+        boolean has_promocodes
+    }
+
+    sub_durations {
+        integer sub_duration_id PK
+        integer service_id FK
+        integer duration_days
+    }
+
+    subscription_plans {
+        integer plan_id PK
+        integer service_id FK
+        integer duration_days
+        character varying name
+        integer price
+    }
+
+    subscriptions {
+        integer sub_id PK
+        uuid user_id FK
+        integer price
+        USER-DEFINED sub_type
+        date start_date
+        date end_date
+        integer plan_id FK
+        integer promocode_id FK
+    }
+
+    user_referrals {
+        uuid referrer_id FK
+        uuid referred_id PK
+        timestamp without time zone created_at
+    }
+
+    users {
+        uuid user_id PK
+        character varying email
+        character varying password
+        character varying user_name
+        integer age
+        integer balance
+    }
+
+```

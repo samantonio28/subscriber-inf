@@ -1,0 +1,145 @@
+@startuml
+!theme plain
+hide circle
+
+entity "cards" as cards {
+  * id : <<PK>>
+  --
+  user_id : uuid
+}
+
+entity "payments" as payments {
+  * id : <<PK>>
+  --
+  user_id : uuid
+  --
+  card_number : character varying
+  --
+  amount : integer
+  --
+  paym_type : USER-DEFINED
+}
+
+entity "promocodes" as promocodes {
+  * id : <<PK>>
+  --
+  service_id : integer
+  --
+  promocode : character varying
+  --
+  sub_id : integer
+  --
+  created_at : timestamp without time zone
+  --
+  discount : integer
+  --
+  max_uses : integer
+  --
+  cur_uses : integer
+  --
+  status : USER-DEFINED
+  --
+  duration_days : integer
+  --
+  plan_id : integer
+  --
+  expires_at : timestamp without time zone
+}
+
+entity "services" as services {
+  * id : <<PK>>
+  --
+  service_name : character varying
+  --
+  sub_duration_id_default : integer
+  --
+  users_count : integer
+  --
+  has_promocodes : boolean
+}
+
+entity "sub_durations" as sub_durations {
+  * id : <<PK>>
+  --
+  service_id : integer
+  --
+  duration_days : integer
+}
+
+entity "subscription_plans" as subscription_plans {
+  * id : <<PK>>
+  --
+  service_id : integer
+  --
+  duration_days : integer
+  --
+  name : character varying
+  --
+  price : integer
+}
+
+entity "subscriptions" as subscriptions {
+  * id : <<PK>>
+  --
+  user_id : uuid
+  --
+  price : integer
+  --
+  sub_type : USER-DEFINED
+  --
+  start_date : date
+  --
+  end_date : date
+  --
+  plan_id : integer
+  --
+  promocode_id : integer
+}
+
+entity "user_referrals" as user_referrals {
+  * id : <<PK>>
+  --
+  referrer_id : uuid
+  --
+  created_at : timestamp without time zone
+}
+
+entity "users" as users {
+  * id : <<PK>>
+  --
+  email : character varying
+  --
+  password : character varying
+  --
+  user_name : character varying
+  --
+  age : integer
+  --
+  balance : integer
+}
+
+users ||--o{ cards : "содержит"
+
+users ||--o{ payments : "содержит"
+
+cards ||--o{ payments : "содержит"
+
+services ||--o{ promocodes : "содержит"
+
+subscriptions ||--o{ promocodes : "содержит"
+
+subscription_plans ||--o{ promocodes : "содержит"
+
+services ||--o{ sub_durations : "содержит"
+
+services ||--o{ subscription_plans : "содержит"
+
+users ||--o{ subscriptions : "содержит"
+
+subscription_plans ||--o{ subscriptions : "содержит"
+
+promocodes ||--o{ subscriptions : "содержит"
+
+users ||--o{ user_referrals : "содержит"
+
+@enduml
