@@ -1320,7 +1320,7 @@ components:
         balance:
           type: integer
           minimum: 0
-        refferal_code:
+        referral_code:
           type: string
           nullable: true
       required:
@@ -1346,7 +1346,7 @@ components:
         balance:
           type: integer
           minimum: 0
-        refferal_code:
+        referral_code:
           type: string
           nullable: true
       required:

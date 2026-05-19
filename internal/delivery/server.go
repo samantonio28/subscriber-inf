@@ -511,6 +511,13 @@ func (s *SubsServer) GetFavoritesServiceServiceId(w http.ResponseWriter, r *http
 }
 
 func (s *SubsServer) PostUsers(w http.ResponseWriter, r *http.Request) {
+	if !checkAdminAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
 	var req api.User
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
@@ -526,7 +533,7 @@ func (s *SubsServer) PostUsers(w http.ResponseWriter, r *http.Request) {
 		UserName:     req.UserName,
 		Age:          int(req.Age),
 		Balance:      int(req.Balance),
-		RefferalCode: req.RefferalCode,
+		ReferralCode: req.ReferralCode,
 	}
 
 	userID, err := s.CreateUserUC.NewUser(r.Context(), dto)
@@ -580,7 +587,7 @@ func (s *SubsServer) GetUsersUserId(w http.ResponseWriter, r *http.Request, user
 		UserName:     dto.UserName,
 		Age:          int(dto.Age),
 		Balance:      int(dto.Balance),
-		RefferalCode: dto.RefferalCode,
+		ReferralCode: dto.ReferralCode,
 	}
 	utils.MakeResponse(w, http.StatusOK, resp)
 }

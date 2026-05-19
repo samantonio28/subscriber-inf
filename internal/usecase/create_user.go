@@ -40,10 +40,10 @@ func (u *CreateUserUC) NewUser(ctx context.Context, input UserDTO) (uuid.UUID, e
 		return uuid.Nil, err
 	}
 	u.logger.Info("user created successfully", "user_id", user.UserID, "referral_code", user.ReferralCode)
-	if input.RefferalCode != nil && *input.RefferalCode != "" {
-		inviter, err := u.userR.GetUserByReferralCode(ctx, *input.RefferalCode)
+	if input.ReferralCode != nil && *input.ReferralCode != "" {
+		inviter, err := u.userR.GetUserByReferralCode(ctx, *input.ReferralCode)
 		if err != nil {
-			u.logger.Error("failed to find inviter by referral code", "referral_code", *input.RefferalCode, "error", err)
+			u.logger.Error("failed to find inviter by referral code", "referral_code", *input.ReferralCode, "error", err)
 		} else {
 			err = u.userR.StoreReferral(ctx, inviter.UserID, user.UserID)
 			if err != nil {

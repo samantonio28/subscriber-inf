@@ -148,7 +148,7 @@ type UserDTO struct {
 	UserName     string      `json:"user_name"`
 	Age          int         `json:"age"`
 	Balance      int         `json:"balance"`
-	RefferalCode *string     `json:"refferal_code"`
+	ReferralCode *string     `json:"referral_code"`
 	Role         domain.Role `json:"role,omitempty"`
 }
 
@@ -158,7 +158,7 @@ type GetUserDTO struct {
 	UserName     string      `json:"user_name"`
 	Age          int         `json:"age"`
 	Balance      int         `json:"balance"`
-	RefferalCode *string     `json:"refferal_code"`
+	ReferralCode *string     `json:"referral_code"`
 	Role         domain.Role `json:"role,omitempty"`
 }
 
@@ -170,7 +170,7 @@ func UserToDTO(user domain.User) UserDTO {
 		UserName:     user.UserName,
 		Age:          user.Age,
 		Balance:      user.Balance,
-		RefferalCode: user.ReferralCode,
+		ReferralCode: user.ReferralCode,
 		Role:         user.Role,
 	}
 }
@@ -182,7 +182,7 @@ func UserToGetUserDTO(user domain.User) GetUserDTO {
 		UserName:     user.UserName,
 		Age:          user.Age,
 		Balance:      user.Balance,
-		RefferalCode: user.ReferralCode,
+		ReferralCode: user.ReferralCode,
 		Role:         user.Role,
 	}
 }
@@ -199,7 +199,7 @@ func DTOToUser(dto UserDTO) (domain.User, error) {
 		dto.UserName,
 		dto.Age,
 		dto.Balance,
-		dto.RefferalCode,
+		dto.ReferralCode,
 		role,
 	)
 	if err != nil {
