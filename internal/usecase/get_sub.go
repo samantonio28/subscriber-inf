@@ -23,12 +23,12 @@ func NewGetSubUC(subR domain.SubscriptionRepository, logger logger.Logger) (*Get
 }
 
 func (u *GetSubUC) SubById(ctx context.Context, subId int) (SubscriptionDTO, error) {
-	u.logger.Info("getting subscription by id", subId)
+	u.logger.Info("getting subscription by id", "subscription_id", subId, "source", "database")
 	sub, err := u.subR.Sub(ctx, domain.SubID(subId))
 	if err != nil {
-		u.logger.Error("error getting subscription by id", subId, err)
+		u.logger.Error("error getting subscription by id", "subscription_id", subId, "error", err, "source", "database")
 		return SubscriptionDTO{}, err
 	}
-	u.logger.Info("got subscription by id", subId, ": ", sub)
+	u.logger.Info("subscription retrieved successfully", "subscription_id", subId, "user_id", sub.UserID, "service", sub.ServiceName, "source", "database")
 	return SubToDTO(sub), nil
 }

@@ -135,3 +135,40 @@ func (uc *StatsOverviewUC) GetOverview(ctx context.Context) (*StatsOverviewOutpu
 	}
 	return output, nil
 }
+
+type ReferralOverviewOutput struct {
+	ReferralStatsItems []ReferralStatItem `json:"referral_stats_items"`
+}
+
+type ReferralStatItem struct {
+	ReferrerID                 string  `json:"referrer_id"`
+	ReferrerName               string  `json:"referrer_name"`
+	ReferredCount              int     `json:"referred_count"`
+	ConvertedToPurchase        int     `json:"converted_to_purchase"`
+	AvgSubscriptionsPerReferred float64 `json:"avg_subscriptions_per_referred"`
+}
+
+func (uc *StatsOverviewUC) GetReferralOverview(ctx context.Context) (*ReferralOverviewOutput, error) {
+	uc.logger.Info("StatsOverviewUC.GetReferralOverview called")
+
+	referralStats, err := uc.statsService.GetReferralStatsFromDB(ctx)
+	if err != nil {
+		uc.logger.Error("GetReferralOverview: failed to get referral stats", "error", err)
+		return nil, err
+	}
+
+	items := make([]ReferralStatItem, 0, len(referralStats))
+	for _, rs := range referralStats {
+		items = append(items, ReferralStatItem{
+			ReferrerID:                 rs.ReferrerID.String(),
+			ReferrerName:               rs.ReferrerName,
+			ReferredCount:              rs.ReferredCount,
+			ConvertedToPurchase:        rs.ConvertedToPurchase,
+			AvgSubscriptionsPerReferred: rs.AvgSubscriptionsPerReferred,
+		})
+	}
+
+	return &ReferralOverviewOutput{
+		ReferralStatsItems: items,
+	}, nil
+}

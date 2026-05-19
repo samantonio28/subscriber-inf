@@ -14,10 +14,11 @@ func TestNewUpdateSubscriptionPlanUC(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockSubscriptionPlanRepository(ctrl)
+	mockCache := mock.NewMockSubscriptionPlanCache(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
 
 	t.Run("successful creation", func(t *testing.T) {
-		uc, err := NewUpdateSubscriptionPlanUC(mockRepo, mockLogger)
+		uc, err := NewUpdateSubscriptionPlanUC(mockRepo, mockCache, mockLogger)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
@@ -27,7 +28,7 @@ func TestNewUpdateSubscriptionPlanUC(t *testing.T) {
 	})
 
 	t.Run("nil repository", func(t *testing.T) {
-		uc, err := NewUpdateSubscriptionPlanUC(nil, mockLogger)
+		uc, err := NewUpdateSubscriptionPlanUC(nil, mockCache, mockLogger)
 		if err != domain.ErrInvalidSubRepo {
 			t.Errorf("expected ErrInvalidSubRepo, got %v", err)
 		}
@@ -36,8 +37,18 @@ func TestNewUpdateSubscriptionPlanUC(t *testing.T) {
 		}
 	})
 
+	t.Run("nil cache", func(t *testing.T) {
+		uc, err := NewUpdateSubscriptionPlanUC(mockRepo, nil, mockLogger)
+		if err != domain.ErrInvalidCache {
+			t.Errorf("expected ErrInvalidCache, got %v", err)
+		}
+		if uc != nil {
+			t.Error("expected uc nil")
+		}
+	})
+
 	t.Run("nil logger", func(t *testing.T) {
-		uc, err := NewUpdateSubscriptionPlanUC(mockRepo, nil)
+		uc, err := NewUpdateSubscriptionPlanUC(mockRepo, mockCache, nil)
 		if err != domain.ErrInvalidLogger {
 			t.Errorf("expected ErrInvalidLogger, got %v", err)
 		}
@@ -52,9 +63,10 @@ func TestUpdateSubscriptionPlanUC_Update(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockSubscriptionPlanRepository(ctrl)
+	mockCache := mock.NewMockSubscriptionPlanCache(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
 
-	uc, err := NewUpdateSubscriptionPlanUC(mockRepo, mockLogger)
+	uc, err := NewUpdateSubscriptionPlanUC(mockRepo, mockCache, mockLogger)
 	if err != nil {
 		t.Fatalf("failed to create usecase: %v", err)
 	}
@@ -67,8 +79,10 @@ func TestUpdateSubscriptionPlanUC_Update(t *testing.T) {
 			DurationDays: 30,
 			Price:        2500,
 		}
+		cacheKey := "123"
 
 		mockRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
+		mockCache.EXPECT().DeleteSubscriptionPlan(gomock.Any(), cacheKey).Return(nil)
 		mockLogger.EXPECT().Info("subscription plan updated").Times(1)
 
 		err := uc.Update(context.Background(), input)
@@ -119,6 +133,7 @@ func TestUpdateSubscriptionPlanUC_Update(t *testing.T) {
 		expectedErr := domain.ErrSubscriptionPlanNotFound
 		mockRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(expectedErr)
 		mockLogger.EXPECT().WithFields(gomock.Any()).Return(nil)
+		// cache invalidation should NOT be called because update failed
 
 		err := uc.Update(context.Background(), input)
 		if err != expectedErr {

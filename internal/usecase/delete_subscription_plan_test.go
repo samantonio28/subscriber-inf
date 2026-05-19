@@ -14,10 +14,11 @@ func TestNewDeleteSubscriptionPlanUC(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockSubscriptionPlanRepository(ctrl)
+	mockCache := mock.NewMockSubscriptionPlanCache(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
 
 	t.Run("successful creation", func(t *testing.T) {
-		uc, err := NewDeleteSubscriptionPlanUC(mockRepo, mockLogger)
+		uc, err := NewDeleteSubscriptionPlanUC(mockRepo, mockCache, mockLogger)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
@@ -27,7 +28,7 @@ func TestNewDeleteSubscriptionPlanUC(t *testing.T) {
 	})
 
 	t.Run("nil repository", func(t *testing.T) {
-		uc, err := NewDeleteSubscriptionPlanUC(nil, mockLogger)
+		uc, err := NewDeleteSubscriptionPlanUC(nil, mockCache, mockLogger)
 		if err != domain.ErrInvalidSubRepo {
 			t.Errorf("expected ErrInvalidSubRepo, got %v", err)
 		}
@@ -36,8 +37,18 @@ func TestNewDeleteSubscriptionPlanUC(t *testing.T) {
 		}
 	})
 
+	t.Run("nil cache", func(t *testing.T) {
+		uc, err := NewDeleteSubscriptionPlanUC(mockRepo, nil, mockLogger)
+		if err != domain.ErrInvalidCache {
+			t.Errorf("expected ErrInvalidCache, got %v", err)
+		}
+		if uc != nil {
+			t.Error("expected uc nil")
+		}
+	})
+
 	t.Run("nil logger", func(t *testing.T) {
-		uc, err := NewDeleteSubscriptionPlanUC(mockRepo, nil)
+		uc, err := NewDeleteSubscriptionPlanUC(mockRepo, mockCache, nil)
 		if err != domain.ErrInvalidLogger {
 			t.Errorf("expected ErrInvalidLogger, got %v", err)
 		}
@@ -52,17 +63,20 @@ func TestDeleteSubscriptionPlanUC_Delete(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockSubscriptionPlanRepository(ctrl)
+	mockCache := mock.NewMockSubscriptionPlanCache(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
 
-	uc, err := NewDeleteSubscriptionPlanUC(mockRepo, mockLogger)
+	uc, err := NewDeleteSubscriptionPlanUC(mockRepo, mockCache, mockLogger)
 	if err != nil {
 		t.Fatalf("failed to create usecase: %v", err)
 	}
 
 	t.Run("successful deletion", func(t *testing.T) {
 		id := domain.PlanID(123)
+		cacheKey := "123"
 
 		mockRepo.EXPECT().Delete(gomock.Any(), id).Return(nil)
+		mockCache.EXPECT().DeleteSubscriptionPlan(gomock.Any(), cacheKey).Return(nil)
 		mockLogger.EXPECT().Info("subscription plan deleted").Times(1)
 
 		err := uc.Delete(context.Background(), id)
@@ -77,6 +91,7 @@ func TestDeleteSubscriptionPlanUC_Delete(t *testing.T) {
 
 		mockRepo.EXPECT().Delete(gomock.Any(), id).Return(expectedErr)
 		mockLogger.EXPECT().WithFields(gomock.Any()).Return(nil)
+		// cache invalidation should NOT be called because deletion failed
 
 		err := uc.Delete(context.Background(), id)
 		if err != expectedErr {

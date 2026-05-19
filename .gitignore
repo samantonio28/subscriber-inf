@@ -1,8 +1,10 @@
-*.pdf
 generated
 logs
 internal/api/
 pkg/clients/
 gitlab_repo
 *guide*
-api_curl_examples.md
+*.md
+*.pdf
+*.log
+

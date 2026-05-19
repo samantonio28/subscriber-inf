@@ -3,14 +3,16 @@ package domain
 import "errors"
 
 var (
-	ErrInvalidSubRepo      = errors.New("subscription repository not defined")
-	ErrInvalidSubPlanRepo  = errors.New("subscription plan repository not defined")
-	ErrInvalidPromoRepo    = errors.New("promocode repository not defined")
-	ErrInvalidUserRepo     = errors.New("user repository not defined")
-	ErrInvalidPaymentRepo  = errors.New("payment repository not defined")
-	ErrInvalidStatsService = errors.New("stats service not defined")
-	ErrInvalidLogger       = errors.New("logger is not defined")
-	ErrInvalidInput        = errors.New("invalid input")
+	ErrInvalidSubRepo         = errors.New("subscription repository not defined")
+	ErrInvalidSubPlanRepo     = errors.New("subscription plan repository not defined")
+	ErrInvalidPromoRepo       = errors.New("promocode repository not defined")
+	ErrInvalidUserRepo        = errors.New("user repository not defined")
+	ErrInvalidPaymentRepo     = errors.New("payment repository not defined")
+	ErrInvalidStatsService    = errors.New("stats service not defined")
+	ErrInvalidUserServiceRepo = errors.New("user service repository not defined")
+	ErrInvalidLogger          = errors.New("logger is not defined")
+	ErrInvalidCache           = errors.New("cache is not defined")
+	ErrInvalidInput           = errors.New("invalid input")
 
 	ErrUserNotFound             = errors.New("user not found")
 	ErrUserAlreadyExists        = errors.New("user already exists")

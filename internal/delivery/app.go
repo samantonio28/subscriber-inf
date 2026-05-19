@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -13,14 +14,26 @@ import (
 	"github.com/samantonio28/subscriber-inf/internal/logger"
 	"github.com/samantonio28/subscriber-inf/internal/redis"
 	"github.com/samantonio28/subscriber-inf/internal/service"
+	serviceredis "github.com/samantonio28/subscriber-inf/internal/service/redis"
 	"github.com/samantonio28/subscriber-inf/pkg/config"
 )
 
-func App(redisClient *redis.Client) {
+func App() {
 	cfg, err := config.LoadConfig("configs/postgres.yaml")
 	if err != nil {
 		log.Fatal("Failed to load config:", err)
 	}
+
+	redisAddr := os.Getenv("REDIS_URL")
+	if redisAddr == "" {
+		redisAddr = cfg.Redis.Addr()
+	}
+	redisClient, err := redis.NewRedisClient(redisAddr)
+	if err != nil {
+		log.Fatal("Failed to connect to Redis:", err)
+	}
+	defer redisClient.Close()
+	log.Println("Successfully connected to Redis!")
 
 	poolConfig, err := cfg.Postgres.ToPgxPoolConfig()
 	if err != nil {
@@ -60,9 +73,24 @@ func App(redisClient *redis.Client) {
 		log.Fatal("Failed to create payment repo:", err)
 	}
 
+	userServiceRepo, err := service.NewUserServiceRepo(pool)
+	if err != nil {
+		log.Fatal("Failed to create user service repo:", err)
+	}
+
 	statsService, err := service.NewStatsService(pool, redisClient)
 	if err != nil {
 		log.Fatal("Failed to create stats repo:", err)
+	}
+
+	planCache, err := serviceredis.NewSubscriptionPlanCache(redisClient)
+	if err != nil {
+		log.Fatal("Failed to create subscription plan cache:", err)
+	}
+
+	promoCache, err := serviceredis.NewPromocodeCache(redisClient)
+	if err != nil {
+		log.Fatal("Failed to create promocode cache:", err)
 	}
 
 	logger, err := logger.NewLogrusLogger("logs/access.log")
@@ -71,7 +99,7 @@ func App(redisClient *redis.Client) {
 		return
 	}
 
-	serverImpl, err := NewSubsServer(repo, promoRepo, planRepo, statsService, userRepo, paymentRepo, logger)
+	serverImpl, err := NewSubsServer(repo, promoRepo, planRepo, planCache, promoCache, statsService, userRepo, paymentRepo, userServiceRepo, logger)
 	if err != nil {
 		log.Fatal("Failed to create server implementation:", err)
 	}
@@ -80,6 +108,7 @@ func App(redisClient *redis.Client) {
 
 	rWithMiddleware := mux.NewRouter()
 	rWithMiddleware.Use(CORSMiddleware())
+	rWithMiddleware.Use(AuthMiddleware(userRepo))
 	rWithMiddleware.Use(AccessLogMiddleware(logger))
 	rWithMiddleware.PathPrefix("/").Handler(r)
 

@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	Postgres PostgresConfig `yaml:"postgres"`
+	Redis    RedisConfig    `yaml:"redis"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -20,6 +21,9 @@ func LoadConfig(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
+
+	// Apply defaults for Redis
+	cfg.Redis.WithDefaults()
 
 	return &cfg, nil
 }

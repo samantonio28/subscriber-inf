@@ -1,6 +1,7 @@
 package delivery
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,45 @@ import (
 	"github.com/samantonio28/subscriber-inf/internal/usecase"
 	"github.com/samantonio28/subscriber-inf/pkg/utils"
 )
+
+// checkUserAccess проверяет, имеет ли аутентифицированный пользователь доступ к данным targetUserID.
+// Возвращает true, если доступ разрешён.
+func checkUserAccess(ctx context.Context, targetUserID uuid.UUID) bool {
+	authUserID, ok := UserIDFromContext(ctx)
+	if !ok {
+		// нет аутентификации — разрешаем (для обратной совместимости)
+		return true
+	}
+	authRole, _ := UserRoleFromContext(ctx)
+	if authRole == domain.RoleAdmin {
+		return true
+	}
+	if authRole == domain.RoleAnalyst {
+		// аналитик не может выполнять операции с пользовательскими данными
+		return false
+	}
+	// role user
+	return authUserID == targetUserID.String()
+}
+
+// checkAnalystAccess проверяет, является ли аутентифицированный пользователь аналитиком.
+// Если да, то возвращает true только для запросов статистики (должно обрабатываться отдельно).
+func checkAnalystAccess(ctx context.Context) bool {
+	authRole, ok := UserRoleFromContext(ctx)
+	if !ok {
+		return false
+	}
+	return authRole == domain.RoleAnalyst
+}
+
+// checkAdminAccess проверяет, является ли аутентифицированный пользователь администратором.
+func checkAdminAccess(ctx context.Context) bool {
+	authRole, ok := UserRoleFromContext(ctx)
+	if !ok {
+		return false
+	}
+	return authRole == domain.RoleAdmin
+}
 
 type SubsServer struct {
 	CreateSubUC  usecase.CreateSubUC
@@ -40,20 +80,28 @@ type SubsServer struct {
 	// Filtering usecases
 	GetFilteredPromocodesUC        usecase.GetFilteredPromocodesUC
 	GetFilteredSubscriptionPlansUC usecase.GetFilteredSubscriptionPlansUC
-	// New usecases for Lab8
-	CreateUserUC                   usecase.CreateUserUC
-	PurchaseSubscriptionUC         usecase.PurchaseSubscriptionUC
-	GetUserUC                      usecase.GetUserUC
-	logger                         *logger.LogrusLogger
+
+	CreateUserUC           usecase.CreateUserUC
+	PurchaseSubscriptionUC usecase.PurchaseSubscriptionUC
+	GetUserUC              usecase.GetUserUC
+	// Favorites usecases
+	AddServiceToFavoritesUC      usecase.AddServiceToFavoritesUC
+	DeleteServiceFromFavoritesUC usecase.DeleteServiceFromFavoritesUC
+	ListUserFavoritesUC          usecase.ListUserFavoritesUC
+	ListFavoritesByServiceUC     usecase.ListFavoritesByServiceUC
+	logger                       *logger.LogrusLogger
 }
 
 func NewSubsServer(
 	repo domain.SubscriptionRepository,
 	promoRepo domain.PromocodeRepository,
 	planRepo domain.SubscriptionPlanRepository,
+	planCache domain.SubscriptionPlanCache,
+	promoCache domain.PromocodeCache,
 	statsService domain.StatsService,
 	userRepo domain.UserRepository,
 	paymentRepo domain.PaymentRepository,
+	userServiceRepo domain.UserServiceRepository,
 	logger *logger.LogrusLogger,
 ) (*SubsServer, error) {
 	createSubUC, err := usecase.NewCreateSubUC(repo, logger)
@@ -90,11 +138,11 @@ func NewSubsServer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create DeletePromocodeUC: %w", err)
 	}
-	getPromoUC, err := usecase.NewGetPromocodeUC(promoRepo, logger)
+	getPromoUC, err := usecase.NewGetPromocodeUC(promoRepo, promoCache, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GetPromocodeUC: %w", err)
 	}
-	updatePromoUC, err := usecase.NewUpdatePromocodeUC(promoRepo, logger)
+	updatePromoUC, err := usecase.NewUpdatePromocodeUC(promoRepo, promoCache, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create UpdatePromocodeUC: %w", err)
 	}
@@ -122,15 +170,15 @@ func NewSubsServer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CreateSubscriptionPlanUC: %w", err)
 	}
-	getPlanUC, err := usecase.NewGetSubscriptionPlanUC(planRepo, logger)
+	getPlanUC, err := usecase.NewGetSubscriptionPlanUC(planRepo, planCache, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GetSubscriptionPlanUC: %w", err)
 	}
-	updatePlanUC, err := usecase.NewUpdateSubscriptionPlanUC(planRepo, logger)
+	updatePlanUC, err := usecase.NewUpdateSubscriptionPlanUC(planRepo, planCache, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create UpdateSubscriptionPlanUC: %w", err)
 	}
-	deletePlanUC, err := usecase.NewDeleteSubscriptionPlanUC(planRepo, logger)
+	deletePlanUC, err := usecase.NewDeleteSubscriptionPlanUC(planRepo, planCache, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create DeleteSubscriptionPlanUC: %w", err)
 	}
@@ -146,6 +194,24 @@ func NewSubsServer(
 	getUserUC, err := usecase.NewGetUserUC(userRepo, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GetUserUC: %w", err)
+	}
+
+	// Favorites usecases
+	addServiceToFavoritesUC, err := usecase.NewAddServiceToFavoritesUC(userServiceRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AddServiceToFavoritesUC: %w", err)
+	}
+	deleteServiceFromFavoritesUC, err := usecase.NewDeleteServiceFromFavoritesUC(userServiceRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create DeleteServiceFromFavoritesUC: %w", err)
+	}
+	listUserFavoritesUC, err := usecase.NewListUserFavoritesUC(userServiceRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ListUserFavoritesUC: %w", err)
+	}
+	listFavoritesByServiceUC, err := usecase.NewListFavoritesByServiceUC(userServiceRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ListFavoritesByServiceUC: %w", err)
 	}
 
 	return &SubsServer{
@@ -172,15 +238,27 @@ func NewSubsServer(
 		GetFilteredPromocodesUC:        *getFilteredPromosUC,
 		GetFilteredSubscriptionPlansUC: *getFilteredPlansUC,
 
-		CreateUserUC:                   *createUserUC,
-		PurchaseSubscriptionUC:         *purchaseSubscriptionUC,
-		GetUserUC:                      *getUserUC,
-		logger:                         logger,
+		CreateUserUC:           *createUserUC,
+		PurchaseSubscriptionUC: *purchaseSubscriptionUC,
+		GetUserUC:              *getUserUC,
+		// Favorites
+		AddServiceToFavoritesUC:      *addServiceToFavoritesUC,
+		DeleteServiceFromFavoritesUC: *deleteServiceFromFavoritesUC,
+		ListUserFavoritesUC:          *listUserFavoritesUC,
+		ListFavoritesByServiceUC:     *listFavoritesByServiceUC,
+		logger:                       logger,
 	}, nil
 }
 
 func (s *SubsServer) GetSubscriptions(w http.ResponseWriter, r *http.Request, params api.GetSubscriptionsParams) {
 	userId := params.Uuid
+
+	if !checkUserAccess(r.Context(), userId) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"message": "access denied",
+		})
+		return
+	}
 
 	dtos, err := s.GetSubsUC.SubsByUserId(r.Context(), userId)
 	if err != nil {
@@ -242,6 +320,25 @@ func (s *SubsServer) PostSubscriptions(w http.ResponseWriter, r *http.Request) {
 		uID = uuid.Nil
 	}
 
+	// Проверка прав доступа
+	if uID != uuid.Nil {
+		// Пользователь может создавать подписки только для себя
+		if !checkUserAccess(r.Context(), uID) {
+			utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+				"message": "access denied",
+			})
+			return
+		}
+	} else {
+		// Создание подписки без пользователя разрешено только администратору
+		if !checkAdminAccess(r.Context()) {
+			utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+				"message": "access denied",
+			})
+			return
+		}
+	}
+
 	stDate, err := time.Parse("01-2006", req.StartDate)
 	if err != nil {
 		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
@@ -286,6 +383,14 @@ func (s *SubsServer) PostSubscriptions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *SubsServer) DeleteSubscriptionsId(w http.ResponseWriter, r *http.Request, id int) {
+	// Только администратор может удалять подписки
+	if !checkAdminAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"message": "access denied",
+		})
+		return
+	}
+
 	err := s.DeleteSubUC.DeleteSub(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNoSubscriptionDeleted) {
@@ -301,6 +406,108 @@ func (s *SubsServer) DeleteSubscriptionsId(w http.ResponseWriter, r *http.Reques
 	}
 
 	utils.MakeResponse(w, http.StatusNoContent, nil)
+}
+
+func (s *SubsServer) PostFavorites(w http.ResponseWriter, r *http.Request) {
+	var req api.FavoriteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid JSON",
+		})
+		return
+	}
+
+	// Проверка прав доступа: пользователь может добавлять в избранное только для себя
+	if !checkUserAccess(r.Context(), req.UserId) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
+	err := s.AddServiceToFavoritesUC.Add(r.Context(), req.UserId, int(req.ServiceId))
+	if err != nil {
+		s.logger.Error("failed to add service to favorites", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to add service to favorites: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusCreated, map[string]string{
+		"message": "Service added to favorites",
+	})
+}
+
+func (s *SubsServer) DeleteFavorites(w http.ResponseWriter, r *http.Request) {
+	var req api.FavoriteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid JSON",
+		})
+		return
+	}
+
+	// Проверка прав доступа: пользователь может удалять из избранного только свои записи
+	if !checkUserAccess(r.Context(), req.UserId) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
+	err := s.DeleteServiceFromFavoritesUC.Delete(r.Context(), req.UserId, int(req.ServiceId))
+	if err != nil {
+		s.logger.Error("failed to delete service from favorites", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to delete service from favorites: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusNoContent, nil)
+}
+
+func (s *SubsServer) GetFavoritesUserUserId(w http.ResponseWriter, r *http.Request, userId types.UUID) {
+	// Проверка прав доступа: пользователь может просматривать только свои избранные
+	if !checkUserAccess(r.Context(), userId) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
+	serviceIDs, err := s.ListUserFavoritesUC.List(r.Context(), userId)
+	if err != nil {
+		s.logger.Error("failed to list user favorites", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to list user favorites: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusOK, map[string][]int{"service_ids": serviceIDs})
+}
+
+func (s *SubsServer) GetFavoritesServiceServiceId(w http.ResponseWriter, r *http.Request, serviceId int) {
+	// Только администратор может просматривать, кто добавил сервис в избранное
+	if !checkAdminAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
+	userIDs, err := s.ListFavoritesByServiceUC.List(r.Context(), serviceId)
+	if err != nil {
+		s.logger.Error("failed to list favorites by service", "error", err)
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to list favorites by service: " + err.Error(),
+		})
+		return
+	}
+
+	utils.MakeResponse(w, http.StatusOK, map[string][]uuid.UUID{"user_ids": userIDs})
 }
 
 func (s *SubsServer) PostUsers(w http.ResponseWriter, r *http.Request) {
@@ -339,10 +546,19 @@ func (s *SubsServer) PostUsers(w http.ResponseWriter, r *http.Request) {
 
 	utils.MakeResponse(w, http.StatusCreated, map[string]string{
 		"message": fmt.Sprintf("new user_id: %s", userID),
+		"user_id": userID.String(),
 	})
 }
 
 func (s *SubsServer) GetUsersUserId(w http.ResponseWriter, r *http.Request, userId types.UUID) {
+	// Проверка прав доступа: пользователь может просматривать только свои данные, админ — любые
+	if !checkUserAccess(r.Context(), userId) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"message": "access denied",
+		})
+		return
+	}
+
 	dto, err := s.GetUserUC.UserById(r.Context(), userId)
 	if err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
@@ -374,6 +590,14 @@ func (s *SubsServer) PostSubscriptionsPurchase(w http.ResponseWriter, r *http.Re
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
 			"message": "invalid json",
+		})
+		return
+	}
+
+	// Проверка прав доступа: пользователь может покупать подписки только для себя
+	if !checkUserAccess(r.Context(), req.UserId) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"message": "access denied",
 		})
 		return
 	}
@@ -414,6 +638,14 @@ func (s *SubsServer) PostSubscriptionsPurchase(w http.ResponseWriter, r *http.Re
 
 // PutPromocodesId updates an existing promocode
 func (s *SubsServer) PutPromocodesId(w http.ResponseWriter, r *http.Request, id int) {
+	// Только администратор может обновлять промокоды
+	if !checkAdminAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"message": "access denied",
+		})
+		return
+	}
+
 	var req struct {
 		ServiceID    int     `json:"service_id"`
 		Value        string  `json:"value"`
@@ -489,6 +721,29 @@ func (s *SubsServer) PutPromocodesId(w http.ResponseWriter, r *http.Request, id 
 
 // PostSubscriptionsIdApplyPromocode applies a promocode to a subscription
 func (s *SubsServer) PostSubscriptionsIdApplyPromocode(w http.ResponseWriter, r *http.Request, id int) {
+	// Получаем подписку, чтобы проверить права доступа
+	subDTO, err := s.GetSubUC.SubById(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			utils.MakeResponse(w, http.StatusNotFound, map[string]string{
+				"message": "subscription not found",
+			})
+			return
+		}
+		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
+			"message": "failed to get subscription: " + err.Error(),
+		})
+		return
+	}
+
+	// Проверка прав доступа: пользователь может применять промокод только к своим подпискам, админ — к любым
+	if !checkUserAccess(r.Context(), subDTO.UserId) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"message": "access denied",
+		})
+		return
+	}
+
 	var req struct {
 		Promocode string `json:"promocode"`
 	}
@@ -543,7 +798,42 @@ func (s *SubsServer) PostSubscriptionsIdApplyPromocode(w http.ResponseWriter, r 
 
 // GetStatsOverview returns system overview statistics
 func (s *SubsServer) GetStatsOverview(w http.ResponseWriter, r *http.Request) {
-	output, err := s.StatsOverviewUC.GetOverview(r.Context())
+	// Проверка прав доступа: только аналитик может просматривать статистику
+	authRole, ok := UserRoleFromContext(r.Context())
+	if !ok {
+		// нет аутентификации — запрещаем
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+	if authRole != domain.RoleAnalyst {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
+	view := r.URL.Query().Get("view")
+	if view == "" {
+		view = "subscriptions" // значение по умолчанию
+	}
+
+	var output any
+	var err error
+
+	switch view {
+	case "subscriptions":
+		output, err = s.StatsOverviewUC.GetOverview(r.Context())
+	case "referrals":
+		output, err = s.StatsOverviewUC.GetReferralOverview(r.Context())
+	default:
+		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid view parameter, allowed values: subscriptions, referrals",
+		})
+		return
+	}
+
 	if err != nil {
 		s.logger.Error("failed to get stats overview", "error", err)
 		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
@@ -566,6 +856,14 @@ func (s *SubsServer) GetSubscriptionsId(w http.ResponseWriter, r *http.Request, 
 		}
 		utils.MakeResponse(w, http.StatusInternalServerError, map[string]string{
 			"message": "failed to get subscription: " + err.Error(),
+		})
+		return
+	}
+
+	// Проверка прав доступа: пользователь может просматривать только свои подписки, админ — любые
+	if !checkUserAccess(r.Context(), dto.UserId) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"message": "access denied",
 		})
 		return
 	}
@@ -600,6 +898,14 @@ func (s *SubsServer) PutSubscriptionsId(w http.ResponseWriter, r *http.Request, 
 		uID = req.UserId
 	} else {
 		uID = uuid.Nil
+	}
+
+	// Проверка прав доступа на создание подписки для данного пользователя
+	if uID != uuid.Nil && !checkUserAccess(r.Context(), uID) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"message": "access denied",
+		})
+		return
 	}
 
 	stDate, err := time.Parse("01-2006", req.StartDate)
@@ -662,6 +968,27 @@ func (s *SubsServer) PostTotalCosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Проверка прав доступа
+	var userId uuid.UUID
+	if req.Filter.UserId != nil {
+		userId = *req.Filter.UserId
+		// Пользователь может запрашивать только свои данные
+		if !checkUserAccess(r.Context(), userId) {
+			utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+				"message": "access denied",
+			})
+			return
+		}
+	} else {
+		// Если фильтр не содержит UserId, то запрос общий — разрешаем только администратору
+		if !checkAdminAccess(r.Context()) {
+			utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+				"message": "access denied",
+			})
+			return
+		}
+	}
+
 	startDate, err := time.Parse("01-2006", req.StartDate)
 	if err != nil {
 		utils.MakeResponse(w, http.StatusBadRequest, map[string]string{
@@ -679,11 +1006,6 @@ func (s *SubsServer) PostTotalCosts(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-	}
-
-	var userId uuid.UUID
-	if req.Filter.UserId != nil {
-		userId = *req.Filter.UserId
 	}
 
 	var subType string
@@ -746,6 +1068,14 @@ func (s *SubsServer) PostTotalCosts(w http.ResponseWriter, r *http.Request) {
 // Promocode handlers
 
 func (s *SubsServer) PostPromocodes(w http.ResponseWriter, r *http.Request) {
+	// Только администратор может создавать промокоды
+	if !checkAdminAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
 	var req struct {
 		ServiceID    int     `json:"service_id"`
 		Value        string  `json:"value"`
@@ -802,6 +1132,14 @@ func (s *SubsServer) PostPromocodes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *SubsServer) GetPromocodes(w http.ResponseWriter, r *http.Request, params api.GetPromocodesParams) {
+	// Аналитик не может просматривать промокоды
+	if checkAnalystAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
 	// Преобразовать параметры API в фильтр юзкейса
 	filter := usecase.PromocodeFilter{}
 
@@ -853,6 +1191,14 @@ func (s *SubsServer) GetPromocodes(w http.ResponseWriter, r *http.Request, param
 }
 
 func (s *SubsServer) GetPromocodesId(w http.ResponseWriter, r *http.Request, id int) {
+	// Аналитик не может просматривать промокоды
+	if checkAnalystAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
 	promocode, err := s.GetPromocodeUC.ByID(r.Context(), domain.PromocodeID(id))
 	if err != nil {
 		if errors.Is(err, domain.ErrPromocodeNotFound) {
@@ -872,6 +1218,14 @@ func (s *SubsServer) GetPromocodesId(w http.ResponseWriter, r *http.Request, id 
 }
 
 func (s *SubsServer) DeletePromocodesId(w http.ResponseWriter, r *http.Request, id int) {
+	// Только администратор может удалять промокоды
+	if !checkAdminAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"message": "access denied",
+		})
+		return
+	}
+
 	err := s.DeletePromocodeUC.Delete(r.Context(), domain.PromocodeID(id))
 	if err != nil {
 		if errors.Is(err, domain.ErrPromocodeNotFound) || errors.Is(err, domain.ErrNoPromocodesDeleted) {
@@ -891,6 +1245,14 @@ func (s *SubsServer) DeletePromocodesId(w http.ResponseWriter, r *http.Request, 
 }
 
 func (s *SubsServer) GetPromocodesCodeCode(w http.ResponseWriter, r *http.Request, code string) {
+	// Аналитик не может просматривать промокоды
+	if checkAnalystAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
 	promocode, err := s.GetPromocodeUC.ByCode(r.Context(), code)
 	if err != nil {
 		if errors.Is(err, domain.ErrPromocodeNotFound) {
@@ -912,6 +1274,14 @@ func (s *SubsServer) GetPromocodesCodeCode(w http.ResponseWriter, r *http.Reques
 // Subscription plan handlers
 
 func (s *SubsServer) PostSubscriptionPlans(w http.ResponseWriter, r *http.Request) {
+	// Только администратор может создавать планы подписок
+	if !checkAdminAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
 	var req struct {
 		ServiceID    int    `json:"service_id"`
 		Name         string `json:"name"`
@@ -948,6 +1318,14 @@ func (s *SubsServer) PostSubscriptionPlans(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *SubsServer) GetSubscriptionPlans(w http.ResponseWriter, r *http.Request, params api.GetSubscriptionPlansParams) {
+	// Аналитик не может просматривать планы подписок
+	if checkAnalystAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
 	// Преобразовать параметры API в фильтр юзкейса
 	filter := usecase.SubscriptionPlanFilter{}
 
@@ -983,6 +1361,14 @@ func (s *SubsServer) GetSubscriptionPlans(w http.ResponseWriter, r *http.Request
 }
 
 func (s *SubsServer) GetSubscriptionPlansId(w http.ResponseWriter, r *http.Request, id int) {
+	// Аналитик не может просматривать планы подписок
+	if checkAnalystAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
 	plan, err := s.GetSubscriptionPlanUC.ByID(r.Context(), domain.PlanID(id))
 	if err != nil {
 		if errors.Is(err, domain.ErrSubscriptionPlanNotFound) {
@@ -1003,6 +1389,14 @@ func (s *SubsServer) GetSubscriptionPlansId(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *SubsServer) PutSubscriptionPlansId(w http.ResponseWriter, r *http.Request, id int) {
+	// Только администратор может обновлять планы подписок
+	if !checkAdminAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"error": "access denied",
+		})
+		return
+	}
+
 	var req struct {
 		ServiceID    int    `json:"service_id"`
 		Name         string `json:"name"`
@@ -1045,6 +1439,14 @@ func (s *SubsServer) PutSubscriptionPlansId(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *SubsServer) DeleteSubscriptionPlansId(w http.ResponseWriter, r *http.Request, id int) {
+	// Только администратор может удалять планы подписок
+	if !checkAdminAccess(r.Context()) {
+		utils.MakeResponse(w, http.StatusForbidden, map[string]string{
+			"message": "access denied",
+		})
+		return
+	}
+
 	err := s.DeleteSubscriptionPlanUC.Delete(r.Context(), domain.PlanID(id))
 	if err != nil {
 		if errors.Is(err, domain.ErrSubscriptionPlanNotFound) {

@@ -45,10 +45,10 @@ func addUsers(pool *pgxpool.Pool) ([]uuid.UUID, error) {
 
 	log.Printf("Added %d users", len(userIDs))
 
-	// Теперь создаем реферальные связи
-	if err := addReferrals(pool, userIDs); err != nil {
-		return nil, fmt.Errorf("failed to add referrals: %w", err)
-	}
+	// // Теперь создаем реферальные связи
+	// if err := addReferrals(pool, userIDs); err != nil {
+	// 	return nil, fmt.Errorf("failed to add referrals: %w", err)
+	// }
 
 	return userIDs, nil
 }

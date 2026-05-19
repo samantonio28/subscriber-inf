@@ -12,5 +12,3 @@ postgres:
     min_conns: 2
     max_conn_lifetime: "1h"
     max_conn_idle_time: "5m"
-sqlite:
-  path: "./data/subscriber.db"

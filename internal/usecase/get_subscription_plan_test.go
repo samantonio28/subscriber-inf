@@ -14,10 +14,11 @@ func TestNewGetSubscriptionPlanUC(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockSubscriptionPlanRepository(ctrl)
+	mockCache := mock.NewMockSubscriptionPlanCache(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
 
 	t.Run("successful creation", func(t *testing.T) {
-		uc, err := NewGetSubscriptionPlanUC(mockRepo, mockLogger)
+		uc, err := NewGetSubscriptionPlanUC(mockRepo, mockCache, mockLogger)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
@@ -27,7 +28,7 @@ func TestNewGetSubscriptionPlanUC(t *testing.T) {
 	})
 
 	t.Run("nil repository", func(t *testing.T) {
-		uc, err := NewGetSubscriptionPlanUC(nil, mockLogger)
+		uc, err := NewGetSubscriptionPlanUC(nil, mockCache, mockLogger)
 		if err != domain.ErrInvalidSubRepo {
 			t.Errorf("expected ErrInvalidSubRepo, got %v", err)
 		}
@@ -37,9 +38,19 @@ func TestNewGetSubscriptionPlanUC(t *testing.T) {
 	})
 
 	t.Run("nil logger", func(t *testing.T) {
-		uc, err := NewGetSubscriptionPlanUC(mockRepo, nil)
+		uc, err := NewGetSubscriptionPlanUC(mockRepo, mockCache, nil)
 		if err != domain.ErrInvalidLogger {
 			t.Errorf("expected ErrInvalidLogger, got %v", err)
+		}
+		if uc != nil {
+			t.Error("expected uc nil")
+		}
+	})
+
+	t.Run("nil cache returns error", func(t *testing.T) {
+		uc, err := NewGetSubscriptionPlanUC(mockRepo, nil, mockLogger)
+		if err != domain.ErrInvalidCache {
+			t.Errorf("expected ErrInvalidCache, got %v", err)
 		}
 		if uc != nil {
 			t.Error("expected uc nil")
@@ -52,14 +63,15 @@ func TestGetSubscriptionPlanUC_ByID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockSubscriptionPlanRepository(ctrl)
+	mockCache := mock.NewMockSubscriptionPlanCache(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
 
-	uc, err := NewGetSubscriptionPlanUC(mockRepo, mockLogger)
+	uc, err := NewGetSubscriptionPlanUC(mockRepo, mockCache, mockLogger)
 	if err != nil {
 		t.Fatalf("failed to create usecase: %v", err)
 	}
 
-	t.Run("successful retrieval", func(t *testing.T) {
+	t.Run("successful retrieval with cache miss", func(t *testing.T) {
 		id := domain.PlanID(123)
 		expectedPlan := domain.SubscriptionPlan{
 			PlanID:       id,
@@ -69,8 +81,38 @@ func TestGetSubscriptionPlanUC_ByID(t *testing.T) {
 			Price:        2999,
 		}
 
+		// Кэш не содержит план
+		mockCache.EXPECT().GetSubscriptionPlan(gomock.Any(), "123").Return(domain.SubscriptionPlan{}, domain.ErrInvalidCache)
+		// Запрос к репозиторию
 		mockRepo.EXPECT().GetByID(gomock.Any(), id).Return(expectedPlan, nil)
-		mockLogger.EXPECT().Info("subscription plan retrieved").Times(1)
+		// Сохранение в кэш
+		mockCache.EXPECT().SetSubscriptionPlan(gomock.Any(), "123", expectedPlan, gomock.Any()).Return(nil)
+		mockLogger.EXPECT().Info("subscription plan retrieved from db and cached").Times(1)
+
+		plan, err := uc.ByID(context.Background(), id)
+		if err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+		if plan.PlanID != expectedPlan.PlanID {
+			t.Errorf("expected plan ID %d, got %d", expectedPlan.PlanID, plan.PlanID)
+		}
+	})
+
+	t.Run("successful retrieval with cache hit", func(t *testing.T) {
+		id := domain.PlanID(456)
+		expectedPlan := domain.SubscriptionPlan{
+			PlanID:       id,
+			ServiceID:    2,
+			Name:         "Basic",
+			DurationDays: 7,
+			Price:        999,
+		}
+
+		// Кэш содержит план
+		mockCache.EXPECT().GetSubscriptionPlan(gomock.Any(), "456").Return(expectedPlan, nil)
+		mockLogger.EXPECT().Info("subscription plan retrieved from cache").Times(1)
+		// Репозиторий не вызывается
+		// SetSubscriptionPlan не вызывается
 
 		plan, err := uc.ByID(context.Background(), id)
 		if err != nil {
@@ -85,6 +127,8 @@ func TestGetSubscriptionPlanUC_ByID(t *testing.T) {
 		id := domain.PlanID(999)
 		expectedErr := domain.ErrSubscriptionPlanNotFound
 
+		// Кэш не содержит
+		mockCache.EXPECT().GetSubscriptionPlan(gomock.Any(), "999").Return(domain.SubscriptionPlan{}, domain.ErrInvalidCache)
 		mockRepo.EXPECT().GetByID(gomock.Any(), id).Return(domain.SubscriptionPlan{}, expectedErr)
 		mockLogger.EXPECT().WithFields(gomock.Any()).Return(nil)
 
@@ -103,9 +147,14 @@ func TestGetSubscriptionPlanUC_ByServiceID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockSubscriptionPlanRepository(ctrl)
+	mockCache := mock.NewMockSubscriptionPlanCache(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
 
-	uc, err := NewGetSubscriptionPlanUC(mockRepo, mockLogger)
+	// Разрешаем любые вызовы к кэшу, так как метод ByServiceID их не использует
+	mockCache.EXPECT().GetSubscriptionPlan(gomock.Any(), gomock.Any()).AnyTimes()
+	mockCache.EXPECT().SetSubscriptionPlan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+
+	uc, err := NewGetSubscriptionPlanUC(mockRepo, mockCache, mockLogger)
 	if err != nil {
 		t.Fatalf("failed to create usecase: %v", err)
 	}

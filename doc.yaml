@@ -2,7 +2,7 @@ openapi: 3.0.4
 
 info:
   title: Subscriber Inf - OpenAPI 3.0
-  version: 1.1.1
+  version: 2.0.0
 
 tags:
 - name: subscriptions
@@ -11,6 +11,8 @@ tags:
   description: Promocodes management
 - name: subscription-plans
   description: Subscription plans (templates) management
+- name: favorites
+  description: User favorites (many-to-many user-services)
 
 paths:
   /subscriptions:
@@ -295,12 +297,12 @@ paths:
                   - service_name
                 sort_by:
                   type: string
-                  enum: [price, start_date, end_date, duration_months, total_cost_for_period]
+                  enum: [ price, start_date, end_date, duration_months, total_cost_for_period ]
                   default: price
                   description: "Field to sort by"
                 sort_order:
                   type: string
-                  enum: [asc, desc]
+                  enum: [ asc, desc ]
                   default: desc
                   description: "Sort order"
               required:
@@ -875,12 +877,12 @@ paths:
       - users
       summary: Get user by ID
       parameters:
-        - name: user_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         '200':
           description: User found
@@ -925,6 +927,168 @@ paths:
                     example: 123
         '400':
           description: Invalid input or insufficient balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /favorites:
+    post:
+      tags:
+      - favorites
+      summary: Add service to user's favorites
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FavoriteRequest'
+        required: true
+      responses:
+        '201':
+          description: Service added to favorites
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Service added to favorites"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '404':
+          description: User or service not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    delete:
+      tags:
+      - favorites
+      summary: Remove service from user's favorites
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FavoriteRequest'
+        required: true
+      responses:
+        '204':
+          description: Service removed from favorites
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '404':
+          description: User or service not found, or favorite not exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /favorites/user/{user_id}:
+    get:
+      tags:
+      - favorites
+      summary: List user's favorite services
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: List of service IDs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service_ids:
+                    type: array
+                    items:
+                      type: integer
+                      example: 5
+                example:
+                  service_ids: []
+        '400':
+          description: Invalid user ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /favorites/service/{service_id}:
+    get:
+      tags:
+      - favorites
+      summary: List users who have this service in favorites
+      parameters:
+      - name: service_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: List of user IDs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_ids:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+                      example: "123e4567-e89b-12d3-a456-426614174000"
+                example:
+                  user_ids: []
+        '400':
+          description: Invalid service ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '404':
+          description: Service not found
           content:
             application/json:
               schema:
@@ -1012,12 +1176,12 @@ components:
           example: 798
           description: "Total cost for this subscription within the filtered period (price * duration_months)"
       required:
-        - sub_id
-        - service_name
-        - price
-        - user_id
-        - sub_type
-        - start_date
+      - sub_id
+      - service_name
+      - price
+      - user_id
+      - sub_type
+      - start_date
     ServiceStats:
       type: object
       properties:
@@ -1186,11 +1350,24 @@ components:
           type: string
           nullable: true
       required:
-        - user_id
-        - email
-        - user_name
-        - age
-        - balance
+      - user_id
+      - email
+      - user_name
+      - age
+      - balance
+    FavoriteRequest:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        service_id:
+          type: integer
+          example: 5
+      required:
+      - user_id
+      - service_id
     PurchaseSubscriptionRequest:
       type: object
       properties:
@@ -1208,8 +1385,8 @@ components:
           type: integer
           minimum: 1
       required:
-        - user_id
-        - service_name
-        - plan_id
-        - price
-        - duration_days
+      - user_id
+      - service_name
+      - plan_id
+      - price
+      - duration_days

@@ -142,22 +142,24 @@ func DTOToPromocode(dto PromocodeDTO) (domain.Promocode, error) {
 }
 
 type UserDTO struct {
-	UserID       uuid.UUID `json:"user_id"`
-	Email        string    `json:"email"`
-	Password     string    `json:"password"`
-	UserName     string    `json:"user_name"`
-	Age          int       `json:"age"`
-	Balance      int       `json:"balance"`
-	RefferalCode *string   `json:"refferal_code"`
+	UserID       uuid.UUID   `json:"user_id"`
+	Email        string      `json:"email"`
+	Password     string      `json:"password"`
+	UserName     string      `json:"user_name"`
+	Age          int         `json:"age"`
+	Balance      int         `json:"balance"`
+	RefferalCode *string     `json:"refferal_code"`
+	Role         domain.Role `json:"role,omitempty"`
 }
 
 type GetUserDTO struct {
-	UserID       uuid.UUID `json:"user_id"`
-	Email        string    `json:"email"`
-	UserName     string    `json:"user_name"`
-	Age          int       `json:"age"`
-	Balance      int       `json:"balance"`
-	RefferalCode *string   `json:"refferal_code"`
+	UserID       uuid.UUID   `json:"user_id"`
+	Email        string      `json:"email"`
+	UserName     string      `json:"user_name"`
+	Age          int         `json:"age"`
+	Balance      int         `json:"balance"`
+	RefferalCode *string     `json:"refferal_code"`
+	Role         domain.Role `json:"role,omitempty"`
 }
 
 func UserToDTO(user domain.User) UserDTO {
@@ -169,6 +171,7 @@ func UserToDTO(user domain.User) UserDTO {
 		Age:          user.Age,
 		Balance:      user.Balance,
 		RefferalCode: user.ReferralCode,
+		Role:         user.Role,
 	}
 }
 
@@ -180,10 +183,15 @@ func UserToGetUserDTO(user domain.User) GetUserDTO {
 		Age:          user.Age,
 		Balance:      user.Balance,
 		RefferalCode: user.ReferralCode,
+		Role:         user.Role,
 	}
 }
 
 func DTOToUser(dto UserDTO) (domain.User, error) {
+	role := dto.Role
+	if !role.Valid() {
+		role = domain.RoleUser
+	}
 	user, err := domain.NewUser(
 		dto.UserID,
 		dto.Email,
@@ -191,7 +199,8 @@ func DTOToUser(dto UserDTO) (domain.User, error) {
 		dto.UserName,
 		dto.Age,
 		dto.Balance,
-		nil,
+		dto.RefferalCode,
+		role,
 	)
 	if err != nil {
 		return domain.User{}, err

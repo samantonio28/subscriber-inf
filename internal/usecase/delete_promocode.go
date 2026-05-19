@@ -23,12 +23,13 @@ func NewDeletePromocodeUC(promocodeRepo domain.PromocodeRepository, logger logge
 }
 
 func (uc *DeletePromocodeUC) Delete(ctx context.Context, id domain.PromocodeID) error {
-	uc.logger.Debug("deleting promocode", "promocode_id", id)
+	uc.logger.Debug("deleting promocode", "promocode_id", id, "source", "database")
 	err := uc.promocodeRepo.Delete(ctx, id)
 	if err != nil {
-		uc.logger.Error("failed to delete promocode", "promocode_id", id, "error", err)
+		uc.logger.Error("failed to delete promocode from database", "promocode_id", id, "error", err, "source", "database")
 		return err
 	}
-	uc.logger.Info("promocode deleted successfully", "promocode_id", id)
+	uc.logger.Info("promocode deleted successfully", "promocode_id", id, "source", "database")
+	uc.logger.Debug("cache invalidation not performed (no cache dependency)")
 	return nil
 }

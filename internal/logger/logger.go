@@ -39,7 +39,7 @@ func NewLogrusLogger(accessLogPath string) (*LogrusLogger, error) {
 	}
 
 	Log.log.SetOutput(accessFile)
-	Log.log.SetLevel(logrus.InfoLevel)
+	Log.log.SetLevel(logrus.TraceLevel)
 
 	return &Log, nil
 }

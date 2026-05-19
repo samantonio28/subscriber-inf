@@ -63,7 +63,8 @@ func (s *StatsService) GetServiceStatsFromDB(ctx context.Context) (*domain.Stats
 			COUNT(sub.sub_id) as sub_count,
 			COALESCE(SUM(sub.price), 0) as revenue
 		FROM services s
-		LEFT JOIN subscriptions sub ON s.service_id = sub.service_id
+		LEFT JOIN subscription_plans sp ON s.service_id = sp.service_id
+		LEFT JOIN subscriptions sub ON sp.plan_id = sub.plan_id
 		WHERE sub.end_date IS NULL OR sub.end_date >= CURRENT_DATE
 		GROUP BY s.service_id, s.service_name
 		ORDER BY sub_count DESC, revenue DESC
@@ -93,7 +94,8 @@ func (s *StatsService) GetServiceStatsFromDB(ctx context.Context) (*domain.Stats
 			COUNT(CASE WHEN sub.end_date IS NULL OR sub.end_date >= CURRENT_DATE THEN 1 END) as active_subs,
 			COALESCE(SUM(sub.price), 0) as total_revenue
 		FROM services s
-		LEFT JOIN subscriptions sub ON s.service_id = sub.service_id
+		LEFT JOIN subscription_plans sp ON s.service_id = sp.service_id
+		LEFT JOIN subscriptions sub ON sp.plan_id = sub.plan_id
 		GROUP BY s.service_id, s.service_name
 		ORDER BY total_revenue DESC
 	`
@@ -149,6 +151,35 @@ func (s *StatsService) GetServiceStatsFromDB(ctx context.Context) (*domain.Stats
 		ExecutionTime: executionTime,
 		Source:        "db",
 	}, nil
+}
+
+// GetReferralStatsFromDB получает статистику по рефералам из VIEW referral_statistics
+func (s *StatsService) GetReferralStatsFromDB(ctx context.Context) ([]domain.ReferralStat, error) {
+	query := `
+		SELECT
+			referrer_id,
+			referrer_name,
+			referred_count,
+			converted_to_purchase,
+			COALESCE(avg_subscriptions_per_referred, 0) as avg_subscriptions_per_referred
+		FROM referral_statistics
+		ORDER BY referred_count DESC
+	`
+	rows, err := s.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query referral statistics: %w", err)
+	}
+	defer rows.Close()
+
+	var stats []domain.ReferralStat
+	for rows.Next() {
+		var rs domain.ReferralStat
+		if err := rows.Scan(&rs.ReferrerID, &rs.ReferrerName, &rs.ReferredCount, &rs.ConvertedToPurchase, &rs.AvgSubscriptionsPerReferred); err != nil {
+			return nil, fmt.Errorf("failed to scan referral stat: %w", err)
+		}
+		stats = append(stats, rs)
+	}
+	return stats, nil
 }
 
 // GetServiceStatsFromCache получает статистику из кэша Redis

@@ -16,6 +16,7 @@ type User struct {
 	Age          int
 	Balance      int
 	ReferralCode *string
+	Role         Role
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -28,6 +29,7 @@ func NewUser(
 	age int,
 	balance int,
 	referralCode *string,
+	role Role,
 ) (*User, error) {
 	if email == "" {
 		return nil, errors.New("email must not be empty")
@@ -44,6 +46,9 @@ func NewUser(
 	if balance < 0 {
 		return nil, errors.New("balance must be greater than or equal to 0")
 	}
+	if !role.Valid() {
+		role = RoleUser
+	}
 	if referralCode == nil {
 		referralCode = generateReferralCode()
 	}
@@ -55,6 +60,7 @@ func NewUser(
 		Age:          age,
 		Balance:      balance,
 		ReferralCode: referralCode,
+		Role:         role,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}, nil
@@ -71,4 +77,6 @@ type UserRepository interface {
 	UpdateUser(ctx context.Context, user User) error
 	GetUserByReferralCode(ctx context.Context, referralCode string) (User, error)
 	StoreReferral(ctx context.Context, referrerID, referredID uuid.UUID) error
+	SetAppCurrentUserID(ctx context.Context, userID uuid.UUID) error
 }
+
