@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
+//go:generate mockgen -destination=../mocks/user_repository.go -package=mocks . UserRepository
+
 type User struct {
 	UserID       uuid.UUID
 	Email        string
@@ -79,4 +81,3 @@ type UserRepository interface {
 	StoreReferral(ctx context.Context, referrerID, referredID uuid.UUID) error
 	SetAppCurrentUserID(ctx context.Context, userID uuid.UUID) error
 }
-

@@ -5,15 +5,14 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 )
 
 type UserServiceRepo struct {
-	p *pgxpool.Pool
+	p PgPool
 }
 
-func NewUserServiceRepo(p *pgxpool.Pool) (domain.UserServiceRepository, error) {
+func NewUserServiceRepo(p PgPool) (domain.UserServiceRepository, error) {
 	if p == nil {
 		return nil, fmt.Errorf("pgxpool.Pool is nil")
 	}

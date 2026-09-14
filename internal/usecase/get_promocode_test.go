@@ -8,6 +8,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	mock "github.com/samantonio28/subscriber-inf/internal/mocks"
+	"github.com/samantonio28/subscriber-inf/internal/testutil"
 )
 
 func TestNewGetPromocodeUC(t *testing.T) {
@@ -16,10 +17,9 @@ func TestNewGetPromocodeUC(t *testing.T) {
 
 	mockRepo := mock.NewMockPromocodeRepository(ctrl)
 	mockCache := mock.NewMockPromocodeCache(ctrl)
-	mockLogger := mock.NewMockLogger(ctrl)
 
 	t.Run("successful creation", func(t *testing.T) {
-		uc, err := NewGetPromocodeUC(mockRepo, mockCache, mockLogger)
+		uc, err := NewGetPromocodeUC(mockRepo, mockCache, &testutil.NopLogger{})
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
@@ -29,7 +29,7 @@ func TestNewGetPromocodeUC(t *testing.T) {
 	})
 
 	t.Run("nil repository", func(t *testing.T) {
-		uc, err := NewGetPromocodeUC(nil, mockCache, mockLogger)
+		uc, err := NewGetPromocodeUC(nil, mockCache, &testutil.NopLogger{})
 		if err != domain.ErrInvalidSubRepo {
 			t.Errorf("expected ErrInvalidSubRepo, got %v", err)
 		}
@@ -39,7 +39,7 @@ func TestNewGetPromocodeUC(t *testing.T) {
 	})
 
 	t.Run("nil cache", func(t *testing.T) {
-		uc, err := NewGetPromocodeUC(mockRepo, nil, mockLogger)
+		uc, err := NewGetPromocodeUC(mockRepo, nil, &testutil.NopLogger{})
 		if err != domain.ErrInvalidCache {
 			t.Errorf("expected ErrInvalidCache, got %v", err)
 		}
@@ -65,15 +65,8 @@ func TestGetPromocodeUC_ByID(t *testing.T) {
 
 	mockRepo := mock.NewMockPromocodeRepository(ctrl)
 	mockCache := mock.NewMockPromocodeCache(ctrl)
-	mockLogger := mock.NewMockLogger(ctrl)
 
-	// Allow any logger calls
-	mockLogger.EXPECT().Debug(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-	mockLogger.EXPECT().Debug(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-	mockLogger.EXPECT().Error(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-	mockLogger.EXPECT().WithFields(gomock.Any()).AnyTimes()
-
-	uc, err := NewGetPromocodeUC(mockRepo, mockCache, mockLogger)
+	uc, err := NewGetPromocodeUC(mockRepo, mockCache, &testutil.NopLogger{})
 	if err != nil {
 		t.Fatalf("failed to create usecase: %v", err)
 	}
@@ -128,14 +121,8 @@ func TestGetPromocodeUC_ByCode(t *testing.T) {
 
 	mockRepo := mock.NewMockPromocodeRepository(ctrl)
 	mockCache := mock.NewMockPromocodeCache(ctrl)
-	mockLogger := mock.NewMockLogger(ctrl)
 
-	// Allow any logger calls
-	mockLogger.EXPECT().Debug(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-	mockLogger.EXPECT().Debug(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-	mockLogger.EXPECT().WithFields(gomock.Any()).AnyTimes()
-
-	uc, err := NewGetPromocodeUC(mockRepo, mockCache, mockLogger)
+	uc, err := NewGetPromocodeUC(mockRepo, mockCache, &testutil.NopLogger{})
 	if err != nil {
 		t.Fatalf("failed to create usecase: %v", err)
 	}
@@ -161,7 +148,6 @@ func TestGetPromocodeUC_ByCode(t *testing.T) {
 		mockCache.EXPECT().GetPromocode(gomock.Any(), code).Return(domain.Promocode{}, domain.ErrInvalidCache)
 		mockRepo.EXPECT().GetByCode(gomock.Any(), code).Return(expectedPromo, nil)
 		mockCache.EXPECT().SetPromocode(gomock.Any(), code, expectedPromo, gomock.Any()).Return(nil)
-		mockLogger.EXPECT().Info("promocode retrieved from db and cached", "code", code).Times(1)
 
 		promo, err := uc.ByCode(context.Background(), code)
 		if err != nil {
@@ -191,7 +177,6 @@ func TestGetPromocodeUC_ByCode(t *testing.T) {
 
 		// Кэш содержит промокод
 		mockCache.EXPECT().GetPromocode(gomock.Any(), code).Return(expectedPromo, nil)
-		mockLogger.EXPECT().Info("promocode retrieved from cache", "code", code).Times(1)
 		// Репозиторий не вызывается
 		// SetPromocode не вызывается
 
@@ -211,7 +196,6 @@ func TestGetPromocodeUC_ByCode(t *testing.T) {
 		// Кэш не содержит
 		mockCache.EXPECT().GetPromocode(gomock.Any(), code).Return(domain.Promocode{}, domain.ErrInvalidCache)
 		mockRepo.EXPECT().GetByCode(gomock.Any(), code).Return(domain.Promocode{}, expectedErr)
-		mockLogger.EXPECT().Error(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 
 		promo, err := uc.ByCode(context.Background(), code)
 		if err != expectedErr {

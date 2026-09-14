@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	"github.com/samantonio28/subscriber-inf/internal/redis"
 )
 
 type StatsService struct {
-	db    *pgxpool.Pool
+	db    PgPool
 	redis *redis.Client
 }
 
@@ -39,7 +38,7 @@ type StatsResponse struct {
 	Source        string         `json:"source"` // "db" or "cache"
 }
 
-func NewStatsService(db *pgxpool.Pool, redisClient *redis.Client) (*StatsService, error) {
+func NewStatsService(db PgPool, redisClient *redis.Client) (*StatsService, error) {
 	if db == nil {
 		return nil, fmt.Errorf("db is nil")
 	}

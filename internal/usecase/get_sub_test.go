@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	mock "github.com/samantonio28/subscriber-inf/internal/mocks"
+	"github.com/samantonio28/subscriber-inf/internal/testutil"
 )
 
 func TestNewGetSubUC(t *testing.T) {
@@ -16,10 +17,9 @@ func TestNewGetSubUC(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockSubRepo := mock.NewMockSubscriptionRepository(ctrl)
-	mockLogger := mock.NewMockLogger(ctrl)
 
 	t.Run("successful creation", func(t *testing.T) {
-		uc, err := NewGetSubUC(mockSubRepo, mockLogger)
+		uc, err := NewGetSubUC(mockSubRepo, &testutil.NopLogger{})
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
@@ -29,7 +29,7 @@ func TestNewGetSubUC(t *testing.T) {
 	})
 
 	t.Run("nil subscription repository", func(t *testing.T) {
-		uc, err := NewGetSubUC(nil, mockLogger)
+		uc, err := NewGetSubUC(nil, &testutil.NopLogger{})
 		if err != domain.ErrInvalidSubRepo {
 			t.Errorf("expected ErrInvalidSubRepo, got %v", err)
 		}
@@ -54,9 +54,8 @@ func TestGetSubUC_SubById(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockSubRepo := mock.NewMockSubscriptionRepository(ctrl)
-	mockLogger := mock.NewMockLogger(ctrl)
 
-	uc, err := NewGetSubUC(mockSubRepo, mockLogger)
+	uc, err := NewGetSubUC(mockSubRepo, &testutil.NopLogger{})
 	if err != nil {
 		t.Fatalf("failed to create usecase: %v", err)
 	}
@@ -78,9 +77,7 @@ func TestGetSubUC_SubById(t *testing.T) {
 		}
 		expectedDTO := SubToDTO(expectedSub)
 
-		mockLogger.EXPECT().Info("getting subscription by id", subID).Times(1)
 		mockSubRepo.EXPECT().Sub(gomock.Any(), domain.SubID(subID)).Return(expectedSub, nil)
-		mockLogger.EXPECT().Info("got subscription by id", subID, ": ", expectedSub).Times(1)
 
 		dto, err := uc.SubById(context.Background(), subID)
 		if err != nil {
@@ -95,9 +92,7 @@ func TestGetSubUC_SubById(t *testing.T) {
 		subID := 99
 		expectedErr := domain.ErrSubscriptionNotFound
 
-		mockLogger.EXPECT().Info("getting subscription by id", subID).Times(1)
 		mockSubRepo.EXPECT().Sub(gomock.Any(), domain.SubID(subID)).Return(domain.Subscription{}, expectedErr)
-		mockLogger.EXPECT().Error("error getting subscription by id", subID, expectedErr).Times(1)
 
 		dto, err := uc.SubById(context.Background(), subID)
 		if err != expectedErr {

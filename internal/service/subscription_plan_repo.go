@@ -7,15 +7,14 @@ import (
 	"log"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 )
 
 type SubscriptionPlanRepo struct {
-	p *pgxpool.Pool
+	p PgPool
 }
 
-func NewSubscriptionPlanRepo(p *pgxpool.Pool) (domain.SubscriptionPlanRepository, error) {
+func NewSubscriptionPlanRepo(p PgPool) (domain.SubscriptionPlanRepository, error) {
 	if p == nil {
 		return nil, domain.ErrInvalidSubPlanRepo // reuse error
 	}

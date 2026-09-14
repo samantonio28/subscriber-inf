@@ -7,4 +7,5 @@ gitlab_repo
 *.md
 *.pdf
 *.log
-
+allure-results*
+*.out

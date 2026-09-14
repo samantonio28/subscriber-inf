@@ -9,15 +9,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 )
 
 type UserRepo struct {
-	p *pgxpool.Pool
+	p PgPool
 }
 
-func NewUserRepo(p *pgxpool.Pool) (domain.UserRepository, error) {
+func NewUserRepo(p PgPool) (domain.UserRepository, error) {
 	if p == nil {
 		return nil, domain.ErrInvalidUserRepo
 	}

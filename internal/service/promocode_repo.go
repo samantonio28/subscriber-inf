@@ -9,15 +9,14 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 )
 
 type PromocodeRepo struct {
-	p *pgxpool.Pool
+	p PgPool
 }
 
-func NewPromocodeRepo(p *pgxpool.Pool) (domain.PromocodeRepository, error) {
+func NewPromocodeRepo(p PgPool) (domain.PromocodeRepository, error) {
 	if p == nil {
 		return nil, domain.ErrInvalidSubRepo
 	}

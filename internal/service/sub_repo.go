@@ -11,16 +11,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	"github.com/samantonio28/subscriber-inf/pkg/utils"
 )
 
 type SubRepo struct {
-	p *pgxpool.Pool
+	p PgPool
 }
 
-func NewSubRepo(p *pgxpool.Pool) (domain.SubscriptionRepository, error) {
+func NewSubRepo(p PgPool) (domain.SubscriptionRepository, error) {
 	if p == nil {
 		return nil, domain.ErrInvalidSubRepo
 	}

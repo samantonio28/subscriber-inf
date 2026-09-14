@@ -7,6 +7,8 @@ import (
 	"github.com/google/uuid"
 )
 
+//go:generate mockgen -destination=../mocks/payment_repository.go -package=mocks . PaymentRepository
+
 type PaymentType string
 
 const (

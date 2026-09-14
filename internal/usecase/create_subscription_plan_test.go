@@ -7,6 +7,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	mock "github.com/samantonio28/subscriber-inf/internal/mocks"
+	"github.com/samantonio28/subscriber-inf/internal/testutil"
 )
 
 func TestNewCreateSubscriptionPlanUC(t *testing.T) {
@@ -14,10 +15,9 @@ func TestNewCreateSubscriptionPlanUC(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockSubscriptionPlanRepository(ctrl)
-	mockLogger := mock.NewMockLogger(ctrl)
 
 	t.Run("successful creation", func(t *testing.T) {
-		uc, err := NewCreateSubscriptionPlanUC(mockRepo, mockLogger)
+		uc, err := NewCreateSubscriptionPlanUC(mockRepo, &testutil.NopLogger{})
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
@@ -27,7 +27,7 @@ func TestNewCreateSubscriptionPlanUC(t *testing.T) {
 	})
 
 	t.Run("nil repository", func(t *testing.T) {
-		uc, err := NewCreateSubscriptionPlanUC(nil, mockLogger)
+		uc, err := NewCreateSubscriptionPlanUC(nil, &testutil.NopLogger{})
 		if err != domain.ErrInvalidSubRepo {
 			t.Errorf("expected ErrInvalidSubRepo, got %v", err)
 		}
@@ -52,9 +52,8 @@ func TestCreateSubscriptionPlanUC_Create(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockSubscriptionPlanRepository(ctrl)
-	mockLogger := mock.NewMockLogger(ctrl)
 
-	uc, err := NewCreateSubscriptionPlanUC(mockRepo, mockLogger)
+	uc, err := NewCreateSubscriptionPlanUC(mockRepo, &testutil.NopLogger{})
 	if err != nil {
 		t.Fatalf("failed to create usecase: %v", err)
 	}
@@ -68,7 +67,6 @@ func TestCreateSubscriptionPlanUC_Create(t *testing.T) {
 		}
 
 		mockRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(domain.PlanID(123), nil)
-		mockLogger.EXPECT().Info("subscription plan created").Times(1)
 
 		id, err := uc.Create(context.Background(), input)
 		if err != nil {
@@ -123,7 +121,6 @@ func TestCreateSubscriptionPlanUC_Create(t *testing.T) {
 
 		expectedErr := domain.ErrSubscriptionPlanNotFound
 		mockRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(domain.PlanID(0), expectedErr)
-		mockLogger.EXPECT().WithFields(gomock.Any()).Return(nil)
 
 		id, err := uc.Create(context.Background(), input)
 		if err != expectedErr {

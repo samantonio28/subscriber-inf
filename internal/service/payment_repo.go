@@ -6,15 +6,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 )
 
 type PaymentRepo struct {
-	p *pgxpool.Pool
+	p PgPool
 }
 
-func NewPaymentRepo(p *pgxpool.Pool) (domain.PaymentRepository, error) {
+func NewPaymentRepo(p PgPool) (domain.PaymentRepository, error) {
 	if p == nil {
 		return nil, domain.ErrInvalidPaymentRepo
 	}

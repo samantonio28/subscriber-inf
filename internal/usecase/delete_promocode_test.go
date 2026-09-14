@@ -7,6 +7,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	mock "github.com/samantonio28/subscriber-inf/internal/mocks"
+	"github.com/samantonio28/subscriber-inf/internal/testutil"
 )
 
 func TestNewDeletePromocodeUC(t *testing.T) {
@@ -52,14 +53,8 @@ func TestDeletePromocodeUC_Delete(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockPromocodeRepository(ctrl)
-	mockLogger := mock.NewMockLogger(ctrl)
 
-	// Allow any logger calls
-	mockLogger.EXPECT().Debug(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-	mockLogger.EXPECT().Info(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-	mockLogger.EXPECT().Error(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-
-	uc, err := NewDeletePromocodeUC(mockRepo, mockLogger)
+	uc, err := NewDeletePromocodeUC(mockRepo, &testutil.NopLogger{})
 	if err != nil {
 		t.Fatalf("failed to create usecase: %v", err)
 	}
