@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	mock "github.com/samantonio28/subscriber-inf/internal/mocks"
 )

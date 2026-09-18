@@ -8,7 +8,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 	uuid "github.com/google/uuid"
 	domain "github.com/samantonio28/subscriber-inf/internal/domain"
 )
