@@ -303,6 +303,7 @@ func addSubscriptions(pool *pgxpool.Pool, userIDs []uuid.UUID, planIDs []int, cr
 			return nil, fmt.Errorf("service name not found for plan %d", planID)
 		}
 
+<<<<<<< Updated upstream
 		// Создаем DTO для подписки
 		dto := usecase.SubscriptionDTO{
 			SubId:       0, // будет сгенерировано
@@ -320,6 +321,38 @@ func addSubscriptions(pool *pgxpool.Pool, userIDs []uuid.UUID, planIDs []int, cr
 		subID, err := createSubUC.NewSub(context.Background(), dto)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create subscription via usecase %d: %w", i, err)
+=======
+		// Вставка подписки
+		var subID int64
+		var query string
+		if dbType == DBTypePostgres {
+			query = `
+				INSERT INTO subscriptions (user_id, plan_id, price, sub_type, start_date, end_date)
+				VALUES ($1, $2, $3, $4, $5, $6)
+			`
+			query += " RETURNING sub_id"
+		} else {
+			query = `
+				INSERT INTO subscriptions (user_id, service_id, price, sub_type, start_date, end_date, plan_id)
+				VALUES ($1, $2, $3, $4, $5, $6, $7)
+			`
+		}
+		query = adaptQuery(query, dbType)
+		if dbType == DBTypePostgres {
+			err := db.QueryRowContext(context.Background(), query, userID, planID, price, subType, startDate, endDate).Scan(&subID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create subscription %d: %w", i, err)
+			}
+		} else {
+			res, err := db.ExecContext(context.Background(), query, userID, serviceVal, price, subType, startDate, endDate, planID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create subscription %d: %w", i, err)
+			}
+			subID, err = res.LastInsertId()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get last insert id for subscription %d: %w", i, err)
+			}
+>>>>>>> Stashed changes
 		}
 
 		subscriptionIDs = append(subscriptionIDs, subID)
@@ -369,6 +402,7 @@ func addPromocodes(pool *pgxpool.Pool, serviceIDs []int, subscriptionIDs []int, 
 			continue
 		}
 
+<<<<<<< Updated upstream
 		// Используем юзкейс для создания промокода
 		input := usecase.CreatePromocodeInput{
 			ServiceID:    serviceID,
@@ -379,6 +413,21 @@ func addPromocodes(pool *pgxpool.Pool, serviceIDs []int, subscriptionIDs []int, 
 			Discount:     discount,
 			MaxUses:      maxUses,
 			DurationDays: durationDays,
+=======
+		// Вставка промокода
+		var query string
+		if dbType == DBTypePostgres {
+			query = `
+				INSERT INTO promocodes (service_id, plan_id, sub_id, promocode, expires_at, discount, max_uses, duration_days)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			`
+		} else {
+			// MySQL использует столбец promocode вместо value, также добавляем status и cur_uses
+			query = `
+				INSERT INTO promocodes (service_id, plan_id, sub_id, promocode, expires_at, discount, max_uses, duration_days, status, cur_uses)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', 0)
+			`
+>>>>>>> Stashed changes
 		}
 
 		_, err = createPromoUC.Create(context.Background(), input)

@@ -1,5 +1,9 @@
 # Database configuration
+<<<<<<< Updated upstream
 type: postgres  # or sqlite
+=======
+type: postgres  # postgres | mysql | sqlite
+>>>>>>> Stashed changes
 postgres:
   host: "localhost"
   port: 8001

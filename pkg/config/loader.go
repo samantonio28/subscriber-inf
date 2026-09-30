@@ -25,5 +25,7 @@ func LoadConfig(path string) (*Config, error) {
 	// Apply defaults for Redis
 	cfg.Redis.WithDefaults()
 
+	applyEnvOverrides(&cfg)
+
 	return &cfg, nil
 }

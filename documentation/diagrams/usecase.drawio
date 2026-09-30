@@ -1,0 +1,87 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0" version="29.5.6">
+  <diagram name="Страница-1" id="YU_r3kXviXiCWZMB35w5">
+    <mxGraphModel dx="1293" dy="748" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="hRk9jyfS4roPCBH-15VN-1" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Пользователь" vertex="1">
+          <mxGeometry height="54" width="161" x="134" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-2" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Сервис подписок" vertex="1">
+          <mxGeometry height="54" width="187" x="312" y="508" as="geometry" />
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-3" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Администратор" vertex="1">
+          <mxGeometry height="54" width="174" x="596" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-4" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Авторизация" vertex="1">
+          <mxGeometry height="54" width="154" x="351" y="655" as="geometry" />
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-5" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Обычный пользователь системы, который может управлять своими подписками и балансом." vertex="1">
+          <mxGeometry height="126" width="260" x="69" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-6" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Администратор системы, который может управлять всеми подписками и пользователями." vertex="1">
+          <mxGeometry height="126" width="260" x="526" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-7" edge="1" parent="1" source="hRk9jyfS4roPCBH-15VN-1" style="curved=1;startArrow=none;endArrow=block;exitX=0.16;exitY=1;entryX=0.05;entryY=0;rounded=0;" target="hRk9jyfS4roPCBH-15VN-2" value="Добавление подписки">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="60" y="423" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-8" edge="1" parent="1" source="hRk9jyfS4roPCBH-15VN-1" style="curved=1;startArrow=none;endArrow=block;exitX=0.55;exitY=1;entryX=0.28;entryY=0;rounded=0;" target="hRk9jyfS4roPCBH-15VN-2" value="Удаление подписки">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="236" y="423" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-9" edge="1" parent="1" source="hRk9jyfS4roPCBH-15VN-1" style="curved=1;startArrow=none;endArrow=block;exitX=0.92;exitY=1;entryX=0.5;entryY=0;rounded=0;" target="hRk9jyfS4roPCBH-15VN-2" value="Пополнение баланса">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="405" y="423" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-10" edge="1" parent="1" source="hRk9jyfS4roPCBH-15VN-3" style="curved=1;startArrow=none;endArrow=block;exitX=0;exitY=0.96;entryX=0.74;entryY=0;rounded=0;" target="hRk9jyfS4roPCBH-15VN-2" value="Управление подписками">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="593" y="423" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-11" edge="1" parent="1" source="hRk9jyfS4roPCBH-15VN-3" style="curved=1;startArrow=none;endArrow=block;exitX=0.34;exitY=1;entryX=0.99;entryY=0;rounded=0;" target="hRk9jyfS4roPCBH-15VN-2" value="Просмотр статистики">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="783" y="423" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-12" edge="1" parent="1" source="hRk9jyfS4roPCBH-15VN-3" style="curved=1;startArrow=none;endArrow=block;exitX=0.74;exitY=1;entryX=1;entryY=0.75;rounded=0;entryDx=0;entryDy=0;" target="hRk9jyfS4roPCBH-15VN-2" value="Управление пользователями">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="982" y="423" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-13" edge="1" parent="1" source="hRk9jyfS4roPCBH-15VN-2" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" target="hRk9jyfS4roPCBH-15VN-4" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-14" edge="1" parent="1" source="hRk9jyfS4roPCBH-15VN-1" style="endArrow=none;html=1;rounded=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" target="hRk9jyfS4roPCBH-15VN-5" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="526" y="320" as="sourcePoint" />
+            <mxPoint x="576" y="270" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="hRk9jyfS4roPCBH-15VN-15" edge="1" parent="1" source="hRk9jyfS4roPCBH-15VN-3" style="endArrow=none;html=1;rounded=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" target="hRk9jyfS4roPCBH-15VN-6" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="616" y="314" as="sourcePoint" />
+            <mxPoint x="600" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
