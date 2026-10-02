@@ -17,11 +17,12 @@ import (
 func TestSubscriptionPlanRepoIntegration(t *testing.T) {
 	runner.Run(t, "SubscriptionPlanRepo integration", func(pt provider.T) {
 		pt.Feature("SubscriptionPlanRepo")
-		pt.Tags("integration", "data-access", "plans")
+		pt.Description("Доступ к данным планов подписок (SubscriptionPlanRepo) против реального PostgreSQL: " +
+			"создание, чтение по ID и сервису, список, обновление и удаление.")
 
 		pool := testdb.Connect(pt)
 		repo, err := NewSubscriptionPlanRepo(pool)
-		pt.Require().NoError(err)
+		pt.Require().NoError(err, "SubscriptionPlanRepo должен создаться")
 		ctx := context.Background()
 
 		seedSvc := func(t testing.TB) int {
@@ -31,53 +32,87 @@ func TestSubscriptionPlanRepoIntegration(t *testing.T) {
 		}
 
 		pt.Run("Create and GetByID", func(t provider.T) {
-			svc := seedSvc(t)
-			id, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Premium", DurationDays: 30, Price: 499})
-			t.Require().NoError(err)
-			t.Assert().NotZero(int(id))
+			t.Description("Создание плана подписки и его чтение по ID.")
+			var svc int
+			t.WithNewStep("Подготовка: сервис YouTube", func(s provider.StepCtx) {
+				svc = seedSvc(t)
+			})
+			t.WithNewStep("Создание плана и чтение по ID", func(s provider.StepCtx) {
+				id, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Premium", DurationDays: 30, Price: 499})
+				s.Require().NoError(err, "Create не должен вернуть ошибку")
+				s.Assert().NotZero(int(id), "ID плана должен быть ненулевым")
 
-			got, err := repo.GetByID(ctx, id)
-			t.Require().NoError(err)
-			t.Assert().Equal("YouTube Premium", got.Name)
-			t.Assert().Equal(499, got.Price)
+				got, err := repo.GetByID(ctx, id)
+				s.Require().NoError(err, "GetByID не должен вернуть ошибку")
+				s.Assert().Equal("YouTube Premium", got.Name, "имя плана должно быть YouTube Premium")
+				s.Assert().Equal(499, got.Price, "цена должна быть 499")
+			})
 		})
 
 		pt.Run("GetByService returns plans of service", func(t provider.T) {
-			svc := seedSvc(t)
-			_, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Family", DurationDays: 30, Price: 899})
-			t.Require().NoError(err)
-			list, err := repo.GetByService(ctx, svc)
-			t.Require().NoError(err)
-			t.Assert().Equal(1, len(list))
+			t.Description("Список планов сервиса: должен вернуться созданный план.")
+			var svc int
+			t.WithNewStep("Подготовка: план YouTube Family", func(s provider.StepCtx) {
+				svc = seedSvc(t)
+				_, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Family", DurationDays: 30, Price: 899})
+				s.Require().NoError(err, "план должен создаться")
+			})
+			t.WithNewStep("Получение планов сервиса", func(s provider.StepCtx) {
+				list, err := repo.GetByService(ctx, svc)
+				s.Require().NoError(err, "GetByService не должен вернуть ошибку")
+				s.Assert().Equal(1, len(list), "должен вернуться 1 план")
+			})
 		})
 
 		pt.Run("GetAll returns all plans", func(t provider.T) {
-			svc := seedSvc(t)
-			_, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Premium", DurationDays: 30, Price: 499})
-			t.Require().NoError(err)
-			list, err := repo.GetAll(ctx)
-			t.Require().NoError(err)
-			t.Assert().Equal(1, len(list))
+			t.Description("Полный список планов: должен вернуться созданный план.")
+			var svc int
+			t.WithNewStep("Подготовка: один план", func(s provider.StepCtx) {
+				svc = seedSvc(t)
+				_, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Premium", DurationDays: 30, Price: 499})
+				s.Require().NoError(err, "план должен создаться")
+			})
+			t.WithNewStep("Получение всех планов", func(s provider.StepCtx) {
+				list, err := repo.GetAll(ctx)
+				s.Require().NoError(err, "GetAll не должен вернуть ошибку")
+				s.Assert().Equal(1, len(list), "должен вернуться 1 план")
+			})
 		})
 
 		pt.Run("Update modifies plan", func(t provider.T) {
-			svc := seedSvc(t)
-			id, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Lite", DurationDays: 30, Price: 299})
-			t.Require().NoError(err)
-			err = repo.Update(ctx, domain.SubscriptionPlan{PlanID: id, ServiceID: svc, Name: "YouTube Lite", DurationDays: 30, Price: 349})
-			t.Require().NoError(err)
-			got, err := repo.GetByID(ctx, id)
-			t.Require().NoError(err)
-			t.Assert().Equal(349, got.Price)
+			t.Description("Обновление плана: цена меняется с 299 на 349.")
+			var svc int
+			var id domain.PlanID
+			t.WithNewStep("Подготовка: план YouTube Lite за 299", func(s provider.StepCtx) {
+				svc = seedSvc(t)
+				var err error
+				id, err = repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Lite", DurationDays: 30, Price: 299})
+				s.Require().NoError(err, "план должен создаться")
+			})
+			t.WithNewStep("Обновление цены до 349", func(s provider.StepCtx) {
+				err := repo.Update(ctx, domain.SubscriptionPlan{PlanID: id, ServiceID: svc, Name: "YouTube Lite", DurationDays: 30, Price: 349})
+				s.Require().NoError(err, "Update не должен вернуть ошибку")
+				got, err := repo.GetByID(ctx, id)
+				s.Require().NoError(err, "план должен читаться после обновления")
+				s.Assert().Equal(349, got.Price, "цена должна стать 349")
+			})
 		})
 
 		pt.Run("Delete removes plan", func(t provider.T) {
-			svc := seedSvc(t)
-			id, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Music", DurationDays: 30, Price: 199})
-			t.Require().NoError(err)
-			t.Require().NoError(repo.Delete(ctx, id))
-			_, err = repo.GetByID(ctx, id)
-			t.Assert().Error(err)
+			t.Description("Удаление плана: после Delete чтение по ID должно вернуть ошибку.")
+			var svc int
+			var id domain.PlanID
+			t.WithNewStep("Подготовка: план YouTube Music", func(s provider.StepCtx) {
+				svc = seedSvc(t)
+				var err error
+				id, err = repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Music", DurationDays: 30, Price: 199})
+				s.Require().NoError(err, "план должен создаться")
+			})
+			t.WithNewStep("Удаление и проверка отсутствия", func(s provider.StepCtx) {
+				s.Require().NoError(repo.Delete(ctx, id), "Delete не должен вернуть ошибку")
+				_, err := repo.GetByID(ctx, id)
+				s.Assert().Error(err, "чтение удалённого плана должно вернуть ошибку")
+			})
 		})
 	})
 }

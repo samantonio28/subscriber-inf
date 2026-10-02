@@ -4,10 +4,6 @@
 // сервиса подписок. Тест поднимает реальный HTTP-сервер (delivery.BuildHandler)
 // с реальными репозиториями и реальными тестовыми PostgreSQL/Redis, и гоняет
 // сценарий целиком через HTTP — так, как это делал бы фронтенд.
-//
-// Сценарий (MVP): пользователь покупает подписку → видит её в списке →
-// запрашивает общую стоимость → администратор создаёт промокод →
-// пользователь применяет промокод и получает скидку.
 package e2e
 
 import (
@@ -71,26 +67,39 @@ func decode(t testing.TB, resp *http.Response, v any) {
 	}
 }
 
+// requireStatus проверяет HTTP-статус ответа; при расхождении читает тело и
+// валит тест с подробным сообщением.
+func requireStatus(s provider.StepCtx, resp *http.Response, want int, desc string) {
+	if resp.StatusCode == want {
+		resp.Body.Close()
+		return
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	s.Require().Equal(want, resp.StatusCode, "%s: got status %d, body=%s", desc, resp.StatusCode, body)
+}
+
 // TestSubscriptionFlowE2E — единый демонстрационный сценарий из нескольких
 // шагов (arrange один раз в начале, далее последовательные act/assert).
 func TestSubscriptionFlowE2E(t *testing.T) {
 	runner.Run(t, "Subscription flow E2E", func(pt provider.T) {
 		pt.Feature("SubscriptionFlow")
-		pt.Tags("e2e", "http", "mvp")
+		pt.Description("Сквозной HTTP-сценарий MVP: пользователь покупает подписку, видит её в списке, " +
+			"запрашивает общую стоимость; администратор создаёт промокод; пользователь применяет его и получает скидку.")
 
 		// --- Arrange: тестовое окружение и HTTP-сервер ---
 		pool := testdb.Connect(pt)
 		testdb.Reset(pt, pool)
 
 		redisClient, err := redis.NewRedisClient(redisAddr())
-		pt.Require().NoError(err)
+		pt.Require().NoError(err, "Redis должен подключиться к тестовому стенду")
 		pt.Cleanup(func() { _ = redisClient.Close() })
 
 		lg, err := logger.NewLogrusLogger("logs/e2e_access.log")
-		pt.Require().NoError(err)
+		pt.Require().NoError(err, "логгер должен создаться")
 
 		handler, err := delivery.BuildHandler(pool, redisClient, lg)
-		pt.Require().NoError(err)
+		pt.Require().NoError(err, "HTTP-обработчик должен собраться из реальных репозиториев")
 		srv := httptest.NewServer(handler)
 		defer srv.Close()
 
@@ -101,94 +110,77 @@ func TestSubscriptionFlowE2E(t *testing.T) {
 		admin := testdb.SeedUser(pt, pool, "admin@example.com", 0, "admin")
 
 		const price = 299
+		var subID int64
 
-		// --- Act 1 / Assert 1: покупка подписки ---
-		purchaseResp := doJSON(pt, srv.URL, http.MethodPost, "/subscriptions/purchase", customer.String(), map[string]any{
-			"user_id":       customer.String(),
-			"service_name":  "Netflix",
-			"plan_id":       plan,
-			"price":         price,
-			"duration_days": 30,
+		pt.WithNewStep("1. Покупка подписки (customer)", func(s provider.StepCtx) {
+			resp := doJSON(pt, srv.URL, http.MethodPost, "/subscriptions/purchase", customer.String(), map[string]any{
+				"user_id":       customer.String(),
+				"service_name":  "Netflix",
+				"plan_id":       plan,
+				"price":         price,
+				"duration_days": 30,
+			})
+			requireStatus(s, resp, http.StatusOK, "покупка подписки должна вернуть 200 OK")
 		})
-		if purchaseResp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(purchaseResp.Body)
-			purchaseResp.Body.Close()
-			pt.Fatalf("purchase status = %d, body = %s", purchaseResp.StatusCode, body)
-		}
-		purchaseResp.Body.Close()
 
-		// --- Act 2 / Assert 2: список подписок пользователя ---
-		type subItem struct {
-			SubID       int64  `json:"sub_id"`
-			ServiceName string `json:"service_name"`
-			Price       int64  `json:"price"`
-			UserID      string `json:"user_id"`
-			SubType     string `json:"sub_type"`
-		}
-		listResp := doJSON(pt, srv.URL, http.MethodGet, "/subscriptions?uuid="+customer.String(), customer.String(), nil)
-		var subs []subItem
-		decode(pt, listResp, &subs)
-		if len(subs) != 1 {
-			pt.Fatalf("expected 1 subscription, got %d", len(subs))
-		}
-		if subs[0].ServiceName != "Netflix" {
-			pt.Errorf("service_name: got %q want Netflix", subs[0].ServiceName)
-		}
-		if subs[0].Price != price {
-			pt.Errorf("price: got %d want %d", subs[0].Price, price)
-		}
-		subID := subs[0].SubID
-
-		// --- Act 3 / Assert 3: общая стоимость за период ---
-		now := time.Now()
-		startDate := now.Format("01-2006")
-		endDate := now.AddDate(0, 1, 0).Format("01-2006")
-		totalResp := doJSON(pt, srv.URL, http.MethodPost, "/total_costs", customer.String(), map[string]any{
-			"start_date": startDate,
-			"end_date":   endDate,
-			"filter": map[string]any{
-				"service_name": "Netflix",
-				"user_id":      customer.String(),
-			},
+		pt.WithNewStep("2. Подписка видна в списке пользователя", func(s provider.StepCtx) {
+			type subItem struct {
+				SubID       int64  `json:"sub_id"`
+				ServiceName string `json:"service_name"`
+				Price       int64  `json:"price"`
+				UserID      string `json:"user_id"`
+				SubType     string `json:"sub_type"`
+			}
+			resp := doJSON(pt, srv.URL, http.MethodGet, "/subscriptions?uuid="+customer.String(), customer.String(), nil)
+			var subs []subItem
+			decode(pt, resp, &subs)
+			s.Require().Equal(1, len(subs), "у покупателя должна быть ровно одна подписка")
+			s.Assert().Equal("Netflix", subs[0].ServiceName, "имя сервиса должно быть Netflix")
+			s.Assert().Equal(int64(price), subs[0].Price, "цена подписки должна быть 299")
+			subID = subs[0].SubID
 		})
-		var total struct {
-			TotalSum int64 `json:"total_sum"`
-		}
-		decode(pt, totalResp, &total)
-		if total.TotalSum != price {
-			pt.Errorf("total_sum: got %d want %d", total.TotalSum, price)
-		}
 
-		// --- Act 4 / Assert 4: администратор создаёт промокод ---
-		promoResp := doJSON(pt, srv.URL, http.MethodPost, "/promocodes", admin.String(), map[string]any{
-			"service_id":    svc,
-			"value":         "SAVE20",
-			"discount":      20,
-			"max_uses":      5,
-			"duration_days": 30,
+		pt.WithNewStep("3. Общая стоимость за период", func(s provider.StepCtx) {
+			now := time.Now()
+			startDate := now.Format("01-2006")
+			endDate := now.AddDate(0, 1, 0).Format("01-2006")
+			resp := doJSON(pt, srv.URL, http.MethodPost, "/total_costs", customer.String(), map[string]any{
+				"start_date": startDate,
+				"end_date":   endDate,
+				"filter": map[string]any{
+					"service_name": "Netflix",
+					"user_id":      customer.String(),
+				},
+			})
+			var total struct {
+				TotalSum int64 `json:"total_sum"`
+			}
+			decode(pt, resp, &total)
+			s.Assert().Equal(int64(price), total.TotalSum, "сумма за месяц должна быть равна цене подписки")
 		})
-		if promoResp.StatusCode != http.StatusCreated {
-			body, _ := io.ReadAll(promoResp.Body)
-			promoResp.Body.Close()
-			pt.Fatalf("create promocode status = %d, body = %s", promoResp.StatusCode, body)
-		}
-		promoResp.Body.Close()
 
-		// --- Act 5 / Assert 5: применение промокода к подписке ---
-		applyResp := doJSON(pt, srv.URL, http.MethodPost, "/subscriptions/"+strconv.FormatInt(subID, 10)+"/apply-promocode", customer.String(), map[string]any{
-			"promocode": "SAVE20",
+		pt.WithNewStep("4. Администратор создаёт промокод SAVE20", func(s provider.StepCtx) {
+			resp := doJSON(pt, srv.URL, http.MethodPost, "/promocodes", admin.String(), map[string]any{
+				"service_id":    svc,
+				"value":         "SAVE20",
+				"discount":      20,
+				"max_uses":      5,
+				"duration_days": 30,
+			})
+			requireStatus(s, resp, http.StatusCreated, "создание промокода должно вернуть 201 Created")
 		})
-		var applied struct {
-			DiscountApplied int `json:"discount_applied"`
-			NewPrice        int `json:"new_price"`
-		}
-		decode(pt, applyResp, &applied)
-		if applied.DiscountApplied != 20 {
-			pt.Errorf("discount_applied: got %d want 20", applied.DiscountApplied)
-		}
-		wantNewPrice := price * 80 / 100
-		if applied.NewPrice != wantNewPrice {
-			pt.Errorf("new_price: got %d want %d", applied.NewPrice, wantNewPrice)
-		}
+
+		pt.WithNewStep("5. Применение промокода со скидкой 20%", func(s provider.StepCtx) {
+			resp := doJSON(pt, srv.URL, http.MethodPost, "/subscriptions/"+strconv.FormatInt(subID, 10)+"/apply-promocode", customer.String(), map[string]any{
+				"promocode": "SAVE20",
+			})
+			var applied struct {
+				DiscountApplied int `json:"discount_applied"`
+				NewPrice        int `json:"new_price"`
+			}
+			decode(pt, resp, &applied)
+			s.Assert().Equal(20, applied.DiscountApplied, "скидка должна быть 20%")
+			s.Assert().Equal(price*80/100, applied.NewPrice, "новая цена должна быть 299 * 80% = 239")
+		})
 	})
 }

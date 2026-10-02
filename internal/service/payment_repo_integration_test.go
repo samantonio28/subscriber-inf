@@ -33,25 +33,27 @@ func setupPaymentRepo(t testing.TB) (*pgxpool.Pool, domain.PaymentRepository, uu
 func TestPaymentRepoIntegration(t *testing.T) {
 	runner.Run(t, "PaymentRepo integration", func(pt provider.T) {
 		pt.Feature("PaymentRepo")
-		pt.Tags("integration", "data-access", "payments")
+		pt.Description("Доступ к данным платежей (PaymentRepo) против реального PostgreSQL: " +
+			"запись платежа-расхода и его чтение по пользователю.")
 
 		_, repo, user := setupPaymentRepo(pt)
 		ctx := context.Background()
 
 		pt.Run("StorePayment and GetUserPayments", func(t provider.T) {
-			err := repo.StorePayment(ctx, domain.Payment{
-				UserID:      user,
-				CardNumber:  nil,
-				Amount:      299,
-				PaymentType: domain.PaymentEXPENCE,
+			t.Description("Запись платежа-расхода на 299 и его чтение по пользователю.")
+			t.WithNewStep("Запись платежа-расхода (card_number = NULL)", func(s provider.StepCtx) {
+				err := repo.StorePayment(ctx, domain.Payment{
+					UserID: user, CardNumber: nil, Amount: 299, PaymentType: domain.PaymentEXPENCE,
+				})
+				s.Require().NoError(err, "StorePayment не должен вернуть ошибку")
 			})
-			t.Require().NoError(err)
-
-			payments, err := repo.GetUserPayments(ctx, user)
-			t.Require().NoError(err)
-			t.Assert().Equal(1, len(payments))
-			t.Assert().Equal(299, payments[0].Amount)
-			t.Assert().Equal(domain.PaymentEXPENCE, payments[0].PaymentType)
+			t.WithNewStep("Чтение платежей пользователя", func(s provider.StepCtx) {
+				payments, err := repo.GetUserPayments(ctx, user)
+				s.Require().NoError(err, "GetUserPayments не должен вернуть ошибку")
+				s.Assert().Equal(1, len(payments), "должен быть ровно один платёж")
+				s.Assert().Equal(299, payments[0].Amount, "сумма платежа должна быть 299")
+				s.Assert().Equal(domain.PaymentEXPENCE, payments[0].PaymentType, "тип платежа должен быть expence")
+			})
 		})
 	})
 }
