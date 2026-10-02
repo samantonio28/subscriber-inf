@@ -65,7 +65,7 @@ jobs:
 
       - name: Run unit tests
         env:
-          ALLURE_OUTPUT_FOLDER: allure-results
+          ALLURE_OUTPUT_FOLDER: ${{ github.workspace }}/allure-results
         run: gotestsum --junitfile unit.xml -- -short -tags allure ./...
 
       - name: Upload results
@@ -120,7 +120,7 @@ jobs:
       # -p 1 сериализует пакеты: разные пакеты работают с одной общей БД.
       - name: Run integration tests
         env:
-          ALLURE_OUTPUT_FOLDER: allure-results
+          ALLURE_OUTPUT_FOLDER: ${{ github.workspace }}/allure-results
         run: gotestsum --junitfile integration.xml -- -p 1 -tags integration -run Integration ./...
 
       - name: Upload results
@@ -174,7 +174,7 @@ jobs:
 
       - name: Run E2E test
         env:
-          ALLURE_OUTPUT_FOLDER: allure-results
+          ALLURE_OUTPUT_FOLDER: ${{ github.workspace }}/allure-results
         run: gotestsum --junitfile e2e.xml -- -p 1 -tags e2e ./test/e2e/...
 
       - name: Upload results
