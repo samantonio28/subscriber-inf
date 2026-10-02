@@ -61,7 +61,7 @@ jobs:
 
       # internal/api и pkg/clients в .gitignore и не коммитятся — генерируем их.
       - name: Generate OpenAPI code
-        run: go generate ./...
+        run: go generate
 
       - name: Run unit tests
         env:
