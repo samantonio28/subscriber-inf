@@ -8,11 +8,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ozontech/allure-go/pkg/framework/provider"
+	"github.com/ozontech/allure-go/pkg/framework/runner"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	"github.com/samantonio28/subscriber-inf/internal/testutil/testdb"
 )
 
-func setupPaymentRepo(t *testing.T) (*pgxpool.Pool, domain.PaymentRepository, uuid.UUID) {
+func setupPaymentRepo(t testing.TB) (*pgxpool.Pool, domain.PaymentRepository, uuid.UUID) {
 	t.Helper()
 	pool := testdb.Connect(t)
 	testdb.Reset(t, pool)
@@ -29,32 +31,27 @@ func setupPaymentRepo(t *testing.T) (*pgxpool.Pool, domain.PaymentRepository, uu
 // TestPaymentRepoIntegration проверяет запись и чтение платежей против
 // реального PostgreSQL (платёж-расход с card_number = NULL).
 func TestPaymentRepoIntegration(t *testing.T) {
-	_, repo, user := setupPaymentRepo(t)
-	ctx := context.Background()
+	runner.Run(t, "PaymentRepo integration", func(pt provider.T) {
+		pt.Feature("PaymentRepo")
+		pt.Tags("integration", "data-access", "payments")
 
-	t.Run("StorePayment and GetUserPayments", func(t *testing.T) {
-		err := repo.StorePayment(ctx, domain.Payment{
-			UserID:      user,
-			CardNumber:  nil,
-			Amount:      299,
-			PaymentType: domain.PaymentEXPENCE,
+		_, repo, user := setupPaymentRepo(pt)
+		ctx := context.Background()
+
+		pt.Run("StorePayment and GetUserPayments", func(t provider.T) {
+			err := repo.StorePayment(ctx, domain.Payment{
+				UserID:      user,
+				CardNumber:  nil,
+				Amount:      299,
+				PaymentType: domain.PaymentEXPENCE,
+			})
+			t.Require().NoError(err)
+
+			payments, err := repo.GetUserPayments(ctx, user)
+			t.Require().NoError(err)
+			t.Assert().Equal(1, len(payments))
+			t.Assert().Equal(299, payments[0].Amount)
+			t.Assert().Equal(domain.PaymentEXPENCE, payments[0].PaymentType)
 		})
-		if err != nil {
-			t.Fatalf("StorePayment: %v", err)
-		}
-
-		payments, err := repo.GetUserPayments(ctx, user)
-		if err != nil {
-			t.Fatalf("GetUserPayments: %v", err)
-		}
-		if len(payments) != 1 {
-			t.Fatalf("expected 1 payment, got %d", len(payments))
-		}
-		if payments[0].Amount != 299 {
-			t.Errorf("Amount: got %d want 299", payments[0].Amount)
-		}
-		if payments[0].PaymentType != domain.PaymentEXPENCE {
-			t.Errorf("PaymentType: got %q want expence", payments[0].PaymentType)
-		}
 	})
 }

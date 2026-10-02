@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ozontech/allure-go/pkg/framework/provider"
+	"github.com/ozontech/allure-go/pkg/framework/runner"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	"github.com/samantonio28/subscriber-inf/internal/testutil/testdb"
 )
@@ -28,121 +30,82 @@ func newPromocode(svc int, value string, discount, maxUses int) domain.Promocode
 // TestPromocodeRepoIntegration проверяет доступ к данным промокодов против
 // реального PostgreSQL. Каждый подтест независим (свой сброс и сидирование).
 func TestPromocodeRepoIntegration(t *testing.T) {
-	pool := testdb.Connect(t)
-	repo, err := NewPromocodeRepo(pool)
-	if err != nil {
-		t.Fatalf("NewPromocodeRepo: %v", err)
-	}
-	ctx := context.Background()
+	runner.Run(t, "PromocodeRepo integration", func(pt provider.T) {
+		pt.Feature("PromocodeRepo")
+		pt.Tags("integration", "data-access", "promocodes")
 
-	seedSvc := func(t *testing.T) int {
-		t.Helper()
-		testdb.Reset(t, pool)
-		return testdb.SeedService(t, pool, "Spotify")
-	}
+		pool := testdb.Connect(pt)
+		repo, err := NewPromocodeRepo(pool)
+		pt.Require().NoError(err)
+		ctx := context.Background()
 
-	t.Run("Create and GetByID", func(t *testing.T) {
-		svc := seedSvc(t)
-		id, err := repo.Create(ctx, newPromocode(svc, "SAVE20", 20, 5))
-		if err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-		if id == 0 {
-			t.Fatal("expected non-zero promocode id")
+		seedSvc := func(t testing.TB) int {
+			t.Helper()
+			testdb.Reset(t, pool)
+			return testdb.SeedService(t, pool, "Spotify")
 		}
 
-		got, err := repo.GetByID(ctx, id)
-		if err != nil {
-			t.Fatalf("GetByID: %v", err)
-		}
-		if got.Value != "SAVE20" {
-			t.Errorf("Value: got %q want SAVE20", got.Value)
-		}
-		if got.Discount != 20 {
-			t.Errorf("Discount: got %d want 20", got.Discount)
-		}
-	})
+		pt.Run("Create and GetByID", func(t provider.T) {
+			svc := seedSvc(t)
+			id, err := repo.Create(ctx, newPromocode(svc, "SAVE20", 20, 5))
+			t.Require().NoError(err)
+			t.Assert().NotZero(int(id))
 
-	t.Run("GetByCode", func(t *testing.T) {
-		svc := seedSvc(t)
-		if _, err := repo.Create(ctx, newPromocode(svc, "WELCOME5", 5, 10)); err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-		got, err := repo.GetByCode(ctx, "WELCOME5")
-		if err != nil {
-			t.Fatalf("GetByCode: %v", err)
-		}
-		if got.Value != "WELCOME5" {
-			t.Errorf("Value: got %q want WELCOME5", got.Value)
-		}
-	})
+			got, err := repo.GetByID(ctx, id)
+			t.Require().NoError(err)
+			t.Assert().Equal("SAVE20", got.Value)
+			t.Assert().Equal(20, got.Discount)
+		})
 
-	t.Run("GetByService returns promocodes of service", func(t *testing.T) {
-		svc := seedSvc(t)
-		if _, err := repo.Create(ctx, newPromocode(svc, "SAVE10", 10, 3)); err != nil {
-			t.Fatalf("Create 1: %v", err)
-		}
-		if _, err := repo.Create(ctx, newPromocode(svc, "SAVE30", 30, 3)); err != nil {
-			t.Fatalf("Create 2: %v", err)
-		}
-		list, err := repo.GetByService(ctx, svc)
-		if err != nil {
-			t.Fatalf("GetByService: %v", err)
-		}
-		if len(list) != 2 {
-			t.Errorf("expected 2 promocodes, got %d", len(list))
-		}
-	})
+		pt.Run("GetByCode", func(t provider.T) {
+			svc := seedSvc(t)
+			_, err := repo.Create(ctx, newPromocode(svc, "WELCOME5", 5, 10))
+			t.Require().NoError(err)
+			got, err := repo.GetByCode(ctx, "WELCOME5")
+			t.Require().NoError(err)
+			t.Assert().Equal("WELCOME5", got.Value)
+		})
 
-	t.Run("Update modifies promocode", func(t *testing.T) {
-		svc := seedSvc(t)
-		id, err := repo.Create(ctx, newPromocode(svc, "SAVE40", 40, 4))
-		if err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-		pc := newPromocode(svc, "SAVE40", 50, 4)
-		pc.PromocodeID = id
-		if err := repo.Update(ctx, pc); err != nil {
-			t.Fatalf("Update: %v", err)
-		}
-		got, err := repo.GetByID(ctx, id)
-		if err != nil {
-			t.Fatalf("GetByID: %v", err)
-		}
-		if got.Discount != 50 {
-			t.Errorf("Discount: got %d want 50", got.Discount)
-		}
-	})
+		pt.Run("GetByService returns promocodes of service", func(t provider.T) {
+			svc := seedSvc(t)
+			_, err := repo.Create(ctx, newPromocode(svc, "SAVE10", 10, 3))
+			t.Require().NoError(err)
+			_, err = repo.Create(ctx, newPromocode(svc, "SAVE30", 30, 3))
+			t.Require().NoError(err)
+			list, err := repo.GetByService(ctx, svc)
+			t.Require().NoError(err)
+			t.Assert().Equal(2, len(list))
+		})
 
-	t.Run("IncrementUses increases cur_uses", func(t *testing.T) {
-		svc := seedSvc(t)
-		id, err := repo.Create(ctx, newPromocode(svc, "SAVE60", 60, 5))
-		if err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-		if err := repo.IncrementUses(ctx, id); err != nil {
-			t.Fatalf("IncrementUses: %v", err)
-		}
-		got, err := repo.GetByID(ctx, id)
-		if err != nil {
-			t.Fatalf("GetByID: %v", err)
-		}
-		if got.CurUses != 1 {
-			t.Errorf("CurUses: got %d want 1", got.CurUses)
-		}
-	})
+		pt.Run("Update modifies promocode", func(t provider.T) {
+			svc := seedSvc(t)
+			id, err := repo.Create(ctx, newPromocode(svc, "SAVE40", 40, 4))
+			t.Require().NoError(err)
+			pc := newPromocode(svc, "SAVE40", 50, 4)
+			pc.PromocodeID = id
+			t.Require().NoError(repo.Update(ctx, pc))
+			got, err := repo.GetByID(ctx, id)
+			t.Require().NoError(err)
+			t.Assert().Equal(50, got.Discount)
+		})
 
-	t.Run("Delete removes promocode", func(t *testing.T) {
-		svc := seedSvc(t)
-		id, err := repo.Create(ctx, newPromocode(svc, "SAVE70", 70, 1))
-		if err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-		if err := repo.Delete(ctx, id); err != nil {
-			t.Fatalf("Delete: %v", err)
-		}
-		if _, err := repo.GetByID(ctx, id); err == nil {
-			t.Fatal("expected error after deletion, got nil")
-		}
+		pt.Run("IncrementUses increases cur_uses", func(t provider.T) {
+			svc := seedSvc(t)
+			id, err := repo.Create(ctx, newPromocode(svc, "SAVE60", 60, 5))
+			t.Require().NoError(err)
+			t.Require().NoError(repo.IncrementUses(ctx, id))
+			got, err := repo.GetByID(ctx, id)
+			t.Require().NoError(err)
+			t.Assert().Equal(1, got.CurUses)
+		})
+
+		pt.Run("Delete removes promocode", func(t provider.T) {
+			svc := seedSvc(t)
+			id, err := repo.Create(ctx, newPromocode(svc, "SAVE70", 70, 1))
+			t.Require().NoError(err)
+			t.Require().NoError(repo.Delete(ctx, id))
+			_, err = repo.GetByID(ctx, id)
+			t.Assert().Error(err)
+		})
 	})
 }

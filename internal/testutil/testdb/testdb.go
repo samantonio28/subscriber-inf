@@ -37,7 +37,7 @@ func DSN() string {
 
 // Connect открывает пул подключений к тестовой БД и регистрирует его закрытие
 // в t.Cleanup.
-func Connect(t *testing.T) *pgxpool.Pool {
+func Connect(t testing.TB) *pgxpool.Pool {
 	t.Helper()
 	pool, err := pgxpool.New(context.Background(), DSN())
 	if err != nil {
@@ -51,7 +51,7 @@ func Connect(t *testing.T) *pgxpool.Pool {
 // Благодаря этому каждый тест стартует с чистого состояния и его можно
 // запускать многократно без накопления данных (требования: идемпотентность,
 // откат хранилища, целостность при прерывании).
-func Reset(t *testing.T, pool *pgxpool.Pool) {
+func Reset(t testing.TB, pool *pgxpool.Pool) {
 	t.Helper()
 	if err := TruncateAll(context.Background(), pool); err != nil {
 		t.Fatalf("reset db: %v", err)
@@ -79,7 +79,7 @@ func TruncateAll(ctx context.Context, pool *pgxpool.Pool) error {
 }
 
 // SeedService создаёт сервис и возвращает его service_id.
-func SeedService(t *testing.T, pool *pgxpool.Pool, name string) int {
+func SeedService(t testing.TB, pool *pgxpool.Pool, name string) int {
 	t.Helper()
 	var id int
 	err := pool.QueryRow(context.Background(),
@@ -93,7 +93,7 @@ func SeedService(t *testing.T, pool *pgxpool.Pool, name string) int {
 }
 
 // SeedPlan создаёт план подписки для сервиса и возвращает plan_id.
-func SeedPlan(t *testing.T, pool *pgxpool.Pool, serviceID int, name string, durationDays, price int) int {
+func SeedPlan(t testing.TB, pool *pgxpool.Pool, serviceID int, name string, durationDays, price int) int {
 	t.Helper()
 	var id int
 	err := pool.QueryRow(context.Background(),
@@ -108,7 +108,7 @@ func SeedPlan(t *testing.T, pool *pgxpool.Pool, serviceID int, name string, dura
 }
 
 // SeedUser создаёт пользователя и возвращает его user_id.
-func SeedUser(t *testing.T, pool *pgxpool.Pool, email string, balance int, role string) uuid.UUID {
+func SeedUser(t testing.TB, pool *pgxpool.Pool, email string, balance int, role string) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
 	if role == "" {
@@ -127,7 +127,7 @@ func SeedUser(t *testing.T, pool *pgxpool.Pool, email string, balance int, role 
 
 // SeedSubscription создаёт подписку (требует существующих user и plan)
 // и возвращает sub_id.
-func SeedSubscription(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, planID int, price int, subType string, startDate, endDate time.Time) int {
+func SeedSubscription(t testing.TB, pool *pgxpool.Pool, userID uuid.UUID, planID int, price int, subType string, startDate, endDate time.Time) int {
 	t.Helper()
 	var id int
 	err := pool.QueryRow(context.Background(),
@@ -142,7 +142,7 @@ func SeedSubscription(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, planID
 }
 
 // SeedPromocode создаёт промокод для сервиса и возвращает promocode_id.
-func SeedPromocode(t *testing.T, pool *pgxpool.Pool, serviceID int, code string, discount, maxUses int) int {
+func SeedPromocode(t testing.TB, pool *pgxpool.Pool, serviceID int, code string, discount, maxUses int) int {
 	t.Helper()
 	var id int
 	err := pool.QueryRow(context.Background(),

@@ -6,6 +6,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ozontech/allure-go/pkg/framework/provider"
+	"github.com/ozontech/allure-go/pkg/framework/runner"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	"github.com/samantonio28/subscriber-inf/internal/testutil/testdb"
 )
@@ -13,99 +15,69 @@ import (
 // TestSubscriptionPlanRepoIntegration проверяет доступ к данным планов подписок
 // против реального PostgreSQL. Каждый подтест независим.
 func TestSubscriptionPlanRepoIntegration(t *testing.T) {
-	pool := testdb.Connect(t)
-	repo, err := NewSubscriptionPlanRepo(pool)
-	if err != nil {
-		t.Fatalf("NewSubscriptionPlanRepo: %v", err)
-	}
-	ctx := context.Background()
+	runner.Run(t, "SubscriptionPlanRepo integration", func(pt provider.T) {
+		pt.Feature("SubscriptionPlanRepo")
+		pt.Tags("integration", "data-access", "plans")
 
-	seedSvc := func(t *testing.T) int {
-		t.Helper()
-		testdb.Reset(t, pool)
-		return testdb.SeedService(t, pool, "YouTube")
-	}
+		pool := testdb.Connect(pt)
+		repo, err := NewSubscriptionPlanRepo(pool)
+		pt.Require().NoError(err)
+		ctx := context.Background()
 
-	t.Run("Create and GetByID", func(t *testing.T) {
-		svc := seedSvc(t)
-		id, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Premium", DurationDays: 30, Price: 499})
-		if err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-		if id == 0 {
-			t.Fatal("expected non-zero plan id")
+		seedSvc := func(t testing.TB) int {
+			t.Helper()
+			testdb.Reset(t, pool)
+			return testdb.SeedService(t, pool, "YouTube")
 		}
 
-		got, err := repo.GetByID(ctx, id)
-		if err != nil {
-			t.Fatalf("GetByID: %v", err)
-		}
-		if got.Name != "YouTube Premium" {
-			t.Errorf("Name: got %q want 'YouTube Premium'", got.Name)
-		}
-		if got.Price != 499 {
-			t.Errorf("Price: got %d want 499", got.Price)
-		}
-	})
+		pt.Run("Create and GetByID", func(t provider.T) {
+			svc := seedSvc(t)
+			id, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Premium", DurationDays: 30, Price: 499})
+			t.Require().NoError(err)
+			t.Assert().NotZero(int(id))
 
-	t.Run("GetByService returns plans of service", func(t *testing.T) {
-		svc := seedSvc(t)
-		if _, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Family", DurationDays: 30, Price: 899}); err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-		list, err := repo.GetByService(ctx, svc)
-		if err != nil {
-			t.Fatalf("GetByService: %v", err)
-		}
-		if len(list) != 1 {
-			t.Errorf("expected 1 plan, got %d", len(list))
-		}
-	})
+			got, err := repo.GetByID(ctx, id)
+			t.Require().NoError(err)
+			t.Assert().Equal("YouTube Premium", got.Name)
+			t.Assert().Equal(499, got.Price)
+		})
 
-	t.Run("GetAll returns all plans", func(t *testing.T) {
-		svc := seedSvc(t)
-		if _, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Premium", DurationDays: 30, Price: 499}); err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-		list, err := repo.GetAll(ctx)
-		if err != nil {
-			t.Fatalf("GetAll: %v", err)
-		}
-		if len(list) != 1 {
-			t.Errorf("expected 1 plan, got %d", len(list))
-		}
-	})
+		pt.Run("GetByService returns plans of service", func(t provider.T) {
+			svc := seedSvc(t)
+			_, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Family", DurationDays: 30, Price: 899})
+			t.Require().NoError(err)
+			list, err := repo.GetByService(ctx, svc)
+			t.Require().NoError(err)
+			t.Assert().Equal(1, len(list))
+		})
 
-	t.Run("Update modifies plan", func(t *testing.T) {
-		svc := seedSvc(t)
-		id, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Lite", DurationDays: 30, Price: 299})
-		if err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-		err = repo.Update(ctx, domain.SubscriptionPlan{PlanID: id, ServiceID: svc, Name: "YouTube Lite", DurationDays: 30, Price: 349})
-		if err != nil {
-			t.Fatalf("Update: %v", err)
-		}
-		got, err := repo.GetByID(ctx, id)
-		if err != nil {
-			t.Fatalf("GetByID: %v", err)
-		}
-		if got.Price != 349 {
-			t.Errorf("Price: got %d want 349", got.Price)
-		}
-	})
+		pt.Run("GetAll returns all plans", func(t provider.T) {
+			svc := seedSvc(t)
+			_, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Premium", DurationDays: 30, Price: 499})
+			t.Require().NoError(err)
+			list, err := repo.GetAll(ctx)
+			t.Require().NoError(err)
+			t.Assert().Equal(1, len(list))
+		})
 
-	t.Run("Delete removes plan", func(t *testing.T) {
-		svc := seedSvc(t)
-		id, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Music", DurationDays: 30, Price: 199})
-		if err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-		if err := repo.Delete(ctx, id); err != nil {
-			t.Fatalf("Delete: %v", err)
-		}
-		if _, err := repo.GetByID(ctx, id); err == nil {
-			t.Fatal("expected error after deletion, got nil")
-		}
+		pt.Run("Update modifies plan", func(t provider.T) {
+			svc := seedSvc(t)
+			id, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Lite", DurationDays: 30, Price: 299})
+			t.Require().NoError(err)
+			err = repo.Update(ctx, domain.SubscriptionPlan{PlanID: id, ServiceID: svc, Name: "YouTube Lite", DurationDays: 30, Price: 349})
+			t.Require().NoError(err)
+			got, err := repo.GetByID(ctx, id)
+			t.Require().NoError(err)
+			t.Assert().Equal(349, got.Price)
+		})
+
+		pt.Run("Delete removes plan", func(t provider.T) {
+			svc := seedSvc(t)
+			id, err := repo.Create(ctx, domain.SubscriptionPlan{ServiceID: svc, Name: "YouTube Music", DurationDays: 30, Price: 199})
+			t.Require().NoError(err)
+			t.Require().NoError(repo.Delete(ctx, id))
+			_, err = repo.GetByID(ctx, id)
+			t.Assert().Error(err)
+		})
 	})
 }

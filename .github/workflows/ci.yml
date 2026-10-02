@@ -119,6 +119,8 @@ jobs:
 
       # -p 1 сериализует пакеты: разные пакеты работают с одной общей БД.
       - name: Run integration tests
+        env:
+          ALLURE_OUTPUT_FOLDER: allure-results
         run: gotestsum --junitfile integration.xml -- -p 1 -tags integration -run Integration ./...
 
       - name: Upload results
@@ -126,7 +128,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: integration-results
-          path: integration.xml
+          path: |
+            integration.xml
+            allure-results/
           if-no-files-found: ignore
 
   # --- 4. E2E-тест демонстрационного сценария ---
@@ -169,6 +173,8 @@ jobs:
           done
 
       - name: Run E2E test
+        env:
+          ALLURE_OUTPUT_FOLDER: allure-results
         run: gotestsum --junitfile e2e.xml -- -p 1 -tags e2e ./test/e2e/...
 
       - name: Upload results
@@ -176,7 +182,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-results
-          path: e2e.xml
+          path: |
+            e2e.xml
+            allure-results/
           if-no-files-found: ignore
 
   # --- 5. Отчёт: генерируется всегда, с историей для трендов (allure) ---
@@ -207,6 +215,8 @@ jobs:
         run: |
           mkdir -p allure-results
           cp -r results/unit-results/allure-results/* allure-results/ 2>/dev/null || true
+          cp -r results/integration-results/allure-results/* allure-results/ 2>/dev/null || true
+          cp -r results/e2e-results/allure-results/* allure-results/ 2>/dev/null || true
           if [ -d allure-report/history ]; then cp -r allure-report/history allure-results/history; fi
           allure generate allure-results -o allure-report --clean
 
