@@ -1,0 +1,770 @@
+openapi: 3.1.0
+
+info:
+  title: Subscriber Inf API
+  version: 1.0.0
+  description: |
+    Публичное REST API сервиса управления подписками.
+    Версия v1 спроектирована в рамках WebLab #2 на основе требований и сценариев WebLab #1.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+
+security: []
+
+tags:
+  - name: users
+    description: Пользователи
+  - name: services
+    description: Онлайн-сервисы (на что оформляется подписка)
+  - name: subscription-plans
+    description: Тарифы (шаблоны подписок)
+  - name: subscriptions
+    description: Подписки пользователей
+  - name: promocodes
+    description: Промокоды
+  - name: analytics
+    description: Расчётные и статистические эндпоинты
+
+paths:
+  # ================= users =================
+  /api/v1/users:
+    post:
+      tags: [users]
+      summary: Создать пользователя
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Пользователь с таким email уже существует
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/users/{user_id}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      tags: [users]
+      summary: Получить пользователя
+      operationId: getUserById
+      responses:
+        '200':
+          description: Пользователь найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ================= services =================
+  /api/v1/services:
+    get:
+      tags: [services]
+      summary: Список сервисов
+      operationId: listServices
+      responses:
+        '200':
+          description: Список сервисов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Service'
+    post:
+      tags: [services]
+      summary: Создать сервис
+      operationId: createService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceCreate'
+      responses:
+        '201':
+          description: Сервис создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/services/{service_id}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+    get:
+      tags: [services]
+      summary: Получить сервис
+      operationId: getServiceById
+      responses:
+        '200':
+          description: Сервис найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [services]
+      summary: Полностью обновить сервис
+      operationId: updateService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceCreate'
+      responses:
+        '200':
+          description: Сервис обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [services]
+      summary: Удалить сервис
+      operationId: deleteService
+      responses:
+        '204':
+          description: Сервис удалён
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ================= subscription-plans =================
+  /api/v1/subscription-plans:
+    get:
+      tags: [subscription-plans]
+      summary: Список тарифов (с фильтрацией)
+      operationId: listSubscriptionPlans
+      parameters:
+        - $ref: '#/components/parameters/ServiceIdQuery'
+        - name: name_contains
+          in: query
+          schema: { type: string }
+        - name: price_min
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: price_max
+          in: query
+          schema: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: Список тарифов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubscriptionPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      tags: [subscription-plans]
+      summary: Создать тариф
+      operationId: createSubscriptionPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionPlanCreate'
+      responses:
+        '201':
+          description: Тариф создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/subscription-plans/{plan_id}:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    get:
+      tags: [subscription-plans]
+      summary: Получить тариф
+      operationId: getSubscriptionPlanById
+      responses:
+        '200':
+          description: Тариф найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [subscription-plans]
+      summary: Полностью обновить тариф
+      operationId: updateSubscriptionPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionPlanCreate'
+      responses:
+        '200':
+          description: Тариф обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [subscription-plans]
+      summary: Частично обновить тариф
+      operationId: patchSubscriptionPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionPlanPatch'
+      responses:
+        '200':
+          description: Тариф обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [subscription-plans]
+      summary: Удалить тариф
+      operationId: deleteSubscriptionPlan
+      responses:
+        '204':
+          description: Тариф удалён
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ================= subscriptions =================
+  /api/v1/subscriptions:
+    get:
+      tags: [subscriptions]
+      summary: Список подписок пользователя
+      operationId: listSubscriptions
+      parameters:
+        - $ref: '#/components/parameters/UserIdQuery'
+      responses:
+        '200':
+          description: Список подписок
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      tags: [subscriptions]
+      summary: Создать подписку (или купить по тарифу)
+      description: |
+        Если передан `plan_id` — подписка «покупается»: цена берётся из тарифа и списывается с баланса.
+        Без `plan_id` — подписка создаётся вручную по переданной `price`.
+      operationId: createSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionCreate'
+      responses:
+        '201':
+          description: Подписка создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '402':
+          description: Недостаточно средств на балансе
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/subscriptions/{sub_id}:
+    parameters:
+      - $ref: '#/components/parameters/SubId'
+    get:
+      tags: [subscriptions]
+      summary: Получить подписку
+      operationId: getSubscriptionById
+      responses:
+        '200':
+          description: Подписка найдена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [subscriptions]
+      summary: Полностью обновить подписку
+      operationId: updateSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionUpdate'
+      responses:
+        '200':
+          description: Подписка обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [subscriptions]
+      summary: Частично обновить подписку (или применить промокод)
+      description: |
+        Частичное обновление: можно изменить только переданные поля.
+        Если передан `promocode` — к подписке применяется промокод (пересчитывается цена со скидкой).
+      operationId: patchSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionPatch'
+      responses:
+        '200':
+          description: Подписка обновлена / промокод применён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          description: Некорректный промокод (не найден/истёк/превышен лимит/не применим)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [subscriptions]
+      summary: Удалить подписку
+      operationId: deleteSubscription
+      responses:
+        '204':
+          description: Подписка удалена
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ================= promocodes =================
+  /api/v1/promocodes:
+    get:
+      tags: [promocodes]
+      summary: Список промокодов (с фильтрацией)
+      operationId: listPromocodes
+      parameters:
+        - $ref: '#/components/parameters/ServiceIdQuery'
+        - name: code
+          in: query
+          description: Точное значение промокода (фильтр по коду)
+          schema: { type: string }
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/PromocodeStatus'
+        - name: discount_min
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 100 }
+        - name: discount_max
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 100 }
+      responses:
+        '200':
+          description: Список промокодов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Promocode'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      tags: [promocodes]
+      summary: Создать промокод
+      operationId: createPromocode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromocodeCreate'
+      responses:
+        '201':
+          description: Промокод создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Promocode'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/promocodes/{promocode_id}:
+    parameters:
+      - $ref: '#/components/parameters/PromocodeId'
+    get:
+      tags: [promocodes]
+      summary: Получить промокод
+      operationId: getPromocodeById
+      responses:
+        '200':
+          description: Промокод найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Promocode'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [promocodes]
+      summary: Полностью обновить промокод
+      operationId: updatePromocode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromocodeCreate'
+      responses:
+        '200':
+          description: Промокод обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Promocode'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [promocodes]
+      summary: Удалить промокод
+      operationId: deletePromocode
+      responses:
+        '204':
+          description: Промокод удалён
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ================= analytics =================
+  /api/v1/total-costs:
+    get:
+      tags: [analytics]
+      summary: Итоговые затраты за период
+      operationId: getTotalCosts
+      parameters:
+        - $ref: '#/components/parameters/UserIdQuery'
+        - name: start_date
+          in: query
+          required: true
+          schema:
+            type: string
+            example: '08-2024'
+            description: 'Дата начала в формате MM-YYYY'
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            example: '08-2025'
+            description: 'Дата конца в формате MM-YYYY (по умолчанию — сейчас)'
+      responses:
+        '200':
+          description: Итоговые затраты
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TotalCosts'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/stats/overview:
+    get:
+      tags: [analytics]
+      summary: Сводная статистика системы
+      operationId: getStatsOverview
+      responses:
+        '200':
+          description: Статистика
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsOverview'
+
+components:
+  parameters:
+    UserId:
+      name: user_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    UserIdQuery:
+      name: user_id
+      in: query
+      required: true
+      schema: { type: string, format: uuid }
+    ServiceId:
+      name: service_id
+      in: path
+      required: true
+      schema: { type: integer }
+    ServiceIdQuery:
+      name: service_id
+      in: query
+      schema: { type: integer }
+    PlanId:
+      name: plan_id
+      in: path
+      required: true
+      schema: { type: integer }
+    SubId:
+      name: sub_id
+      in: path
+      required: true
+      schema: { type: integer }
+    PromocodeId:
+      name: promocode_id
+      in: path
+      required: true
+      schema: { type: integer }
+
+  responses:
+    BadRequest:
+      description: Некорректный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    SubscriptionType:
+      type: string
+      enum: [usual, promocode, family]
+
+    PromocodeStatus:
+      type: string
+      enum: [ACTIVE, USED, DISABLED]
+
+    # ---------- users ----------
+    UserCreate:
+      type: object
+      required: [email, password, user_name, age, balance]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, writeOnly: true }
+        user_name: { type: string }
+        age: { type: integer, minimum: 0 }
+        balance: { type: integer, minimum: 0 }
+
+    UserResponse:
+      type: object
+      required: [user_id, email, user_name, age, balance]
+      properties:
+        user_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        user_name: { type: string }
+        age: { type: integer, minimum: 0 }
+        balance: { type: integer, minimum: 0 }
+        referral_code: { type: string }
+
+    # ---------- services ----------
+    ServiceCreate:
+      type: object
+      required: [service_name]
+      properties:
+        service_name: { type: string }
+        users_count: { type: integer, minimum: 0 }
+        has_promocodes: { type: boolean }
+
+    Service:
+      allOf:
+        - $ref: '#/components/schemas/ServiceCreate'
+        - type: object
+          properties:
+            service_id: { type: integer, readOnly: true }
+
+    # ---------- subscription-plans ----------
+    SubscriptionPlanCreate:
+      type: object
+      required: [service_id, name, duration_days, price]
+      properties:
+        service_id: { type: integer }
+        name: { type: string }
+        duration_days: { type: integer, minimum: 1 }
+        price: { type: integer, minimum: 1 }
+
+    SubscriptionPlan:
+      allOf:
+        - $ref: '#/components/schemas/SubscriptionPlanCreate'
+        - type: object
+          properties:
+            plan_id: { type: integer, readOnly: true }
+
+    SubscriptionPlanPatch:
+      type: object
+      properties:
+        name: { type: string }
+        duration_days: { type: integer, minimum: 1 }
+        price: { type: integer, minimum: 1 }
+
+    # ---------- subscriptions ----------
+    SubscriptionCreate:
+      type: object
+      required: [user_id, start_date]
+      properties:
+        user_id: { type: string, format: uuid }
+        plan_id: { type: integer, description: 'Если задан — покупка по тарифу (списание баланса)' }
+        price: { type: integer, minimum: 0, description: 'Цена (если plan_id не задан)' }
+        sub_type: { $ref: '#/components/schemas/SubscriptionType' }
+        start_date: { type: string, example: '08-2024', description: 'MM-YYYY' }
+        end_date: { type: string, example: '08-2025', description: 'MM-YYYY' }
+
+    SubscriptionUpdate:
+      type: object
+      required: [user_id, start_date]
+      properties:
+        user_id: { type: string, format: uuid }
+        plan_id: { type: integer }
+        price: { type: integer, minimum: 0 }
+        sub_type: { $ref: '#/components/schemas/SubscriptionType' }
+        start_date: { type: string, description: 'MM-YYYY' }
+        end_date: { type: string, description: 'MM-YYYY' }
+
+    SubscriptionPatch:
+      type: object
+      description: 'Частичное обновление: передаются только изменяемые поля. promocode — применить промокод.'
+      properties:
+        price: { type: integer, minimum: 0 }
+        sub_type: { $ref: '#/components/schemas/SubscriptionType' }
+        start_date: { type: string, description: 'MM-YYYY' }
+        end_date: { type: string, description: 'MM-YYYY' }
+        promocode:
+          type: string
+          example: 'SUMMER2025'
+          description: 'Значение промокода для применения к подписке'
+
+    Subscription:
+      type: object
+      required: [sub_id, user_id, plan_id, price, sub_type, start_date]
+      properties:
+        sub_id: { type: integer }
+        user_id: { type: string, format: uuid }
+        plan_id: { type: integer }
+        service_name: { type: string, description: 'Денормализованное имя сервиса (через план)' }
+        price: { type: integer }
+        sub_type: { $ref: '#/components/schemas/SubscriptionType' }
+        start_date: { type: string, description: 'MM-YYYY' }
+        end_date: { type: string, description: 'MM-YYYY' }
+        promocode_id: { type: integer }
+
+    # ---------- promocodes ----------
+    PromocodeCreate:
+      type: object
+      required: [service_id, value, discount, max_uses]
+      properties:
+        service_id: { type: integer }
+        plan_id: { type: integer }
+        value: { type: string, example: 'SUMMER2025' }
+        expires_at: { type: string, format: date-time }
+        discount: { type: integer, minimum: 0, maximum: 100 }
+        max_uses: { type: integer, minimum: 1 }
+        duration_days: { type: integer, minimum: 1 }
+
+    Promocode:
+      allOf:
+        - $ref: '#/components/schemas/PromocodeCreate'
+        - type: object
+          properties:
+            promocode_id: { type: integer, readOnly: true }
+            cur_uses: { type: integer, minimum: 0, readOnly: true }
+            status: { $ref: '#/components/schemas/PromocodeStatus' }
+            created_at: { type: string, format: date-time, readOnly: true }
+
+    # ---------- analytics ----------
+    TotalCosts:
+      type: object
+      required: [total_sum, sub_ids, subscriptions]
+      properties:
+        total_sum: { type: integer }
+        sub_ids:
+          type: array
+          items: { type: integer }
+        subscriptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Subscription'
+
+    ServiceStats:
+      type: object
+      properties:
+        service_name: { type: string }
+        total_subscriptions: { type: integer }
+        total_revenue: { type: integer }
+        avg_subscription_cost: { type: number }
+
+    StatsOverview:
+      type: object
+      properties:
+        total_subscriptions: { type: integer }
+        active_subscriptions: { type: integer }
+        total_promocodes: { type: integer }
+        active_promocodes: { type: integer }
+        total_revenue: { type: integer }
+        avg_subscription_price: { type: number }
+        most_popular_service: { type: string }
+        service_stats:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceStats'

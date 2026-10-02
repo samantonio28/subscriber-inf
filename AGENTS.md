@@ -29,7 +29,8 @@
 
 - `WebLab1.md` — цель, требования (функц./нефункц.), сценарии, диаграммы.
 - ADR — раздел 11 в `WebLab1.md` (ADR-1: PostgreSQL+Redis; ADR-2: модульный монолит).
-- `doc.yaml` — OpenAPI 3.0, источник истины для кодогенерации (`go generate`).
+- `doc.yaml` — OpenAPI 3.0, текущий источник истины для кодогенерации (`go generate`).
+- `openapi.yaml` — целевой REST OpenAPI 3.1 (`/api/v1`), результат WebLab #2; `WebLab2.md` — его документация.
 - `documentation/project.md`, `documentation/diagrams/` — материалы из ППО.
 
 ## Структура репозитория
@@ -68,6 +69,16 @@ cd ~/study/web/subscriber-inf && make usecase
 
 # Интеграционные тесты (требуют запущенную БД)
 cd ~/study/web/subscriber-inf && make integration
+
+# OpenAPI-линтер (WebLab #2)
+cd ~/study/web/subscriber-inf && make lint-api
+
+# Mock-сервер (Prism) на :4010 — 1-й терминал, оставить висеть
+cd ~/study/web/subscriber-inf && make mock-api
+
+# Демонстрация сценария — 2-й терминал (mock уже поднят)
+cd ~/study/web/subscriber-inf && make demo     # все 5 шагов подряд
+cd ~/study/web/subscriber-inf && make demo-1   # ...или пошагово: demo-1 .. demo-5
 ```
 
 ## Границы изменений / правила
