@@ -15,13 +15,13 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/mock/gomock"
 	"github.com/ozontech/allure-go/pkg/framework/provider"
 	"github.com/ozontech/allure-go/pkg/framework/runner"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	mock "github.com/samantonio28/subscriber-inf/internal/mocks"
 	"github.com/samantonio28/subscriber-inf/internal/service"
 	"github.com/samantonio28/subscriber-inf/internal/testutil"
+	"go.uber.org/mock/gomock"
 )
 
 // ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@ func TestAllureCreateSub(t *testing.T) {
 		pt.Title("Создание подписки: настоящий SubRepo над FakePgPool")
 
 		ctx := context.Background()
-		fakePG := testutil.NewFakePgPool()
+		fakePG := resetFixtures()
 		fakePG.Tx().OnQueryRow("RETURNING sub_id", testutil.NewStubRow(42))
 
 		subRepo, err := service.NewSubRepo(fakePG)
@@ -132,7 +132,7 @@ func TestAllureGetSub(t *testing.T) {
 		start := time.Now()
 		end := time.Now().AddDate(0, 1, 0)
 
-		fakePG := testutil.NewFakePgPool()
+		fakePG := resetFixtures()
 		fakePG.Tx().OnQueryRow("SELECT s.sub_id", stubSubRow(7, userID, 1, 1000, "usual", start, end))
 
 		subRepo, _ := service.NewSubRepo(fakePG)
@@ -185,7 +185,7 @@ func TestAllureGetSubs(t *testing.T) {
 		start := time.Now()
 		end := time.Now().AddDate(0, 1, 0)
 
-		fakePG := testutil.NewFakePgPool()
+		fakePG := resetFixtures()
 		fakePG.SetQuery("SELECT sub_id FROM subscriptions", testutil.NewStubRows([]any{1}))
 		fakePG.Tx().OnQueryRow("SELECT s.sub_id", stubSubRow(1, userID, 1, 500, "usual", start, end))
 
@@ -228,7 +228,7 @@ func TestAllureDeleteSub(t *testing.T) {
 		pt.Title("Удаление: DELETE ... по CommandTag")
 
 		ctx := context.Background()
-		fakePG := testutil.NewFakePgPool()
+		fakePG := resetFixtures()
 		fakePG.SetExec("DELETE FROM subscriptions", testutil.CommandTagDelete(1))
 
 		subRepo, _ := service.NewSubRepo(fakePG)
@@ -284,7 +284,7 @@ func TestAllureUpdateSub(t *testing.T) {
 		firstOfMonth := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 		end := firstOfMonth.AddDate(0, 1, 0)
 
-		fakePG := testutil.NewFakePgPool()
+		fakePG := resetFixtures()
 		fakePG.Tx().OnQueryRow("SELECT s.sub_id", stubSubRow(1, userID, 1, 1000, "usual", firstOfMonth, end))
 		fakePG.Tx().OnExec("UPDATE subscriptions", testutil.CommandTagUpdate(1))
 
@@ -334,7 +334,7 @@ func TestAllureCreatePromocode(t *testing.T) {
 		pt.Title("Создание: транзакция с RETURNING promocode_id")
 
 		ctx := context.Background()
-		fakePG := testutil.NewFakePgPool()
+		fakePG := resetFixtures()
 		fakePG.Tx().OnQueryRow("RETURNING promocode_id", testutil.NewStubRow(123))
 
 		promoRepo, err := service.NewPromocodeRepo(fakePG)
@@ -387,7 +387,7 @@ func TestAllureGetPromocode(t *testing.T) {
 		pt.Title("Получение: SELECT сканирует 12 полей; мок только для кэша")
 
 		ctx := context.Background()
-		fakePG := testutil.NewFakePgPool()
+		fakePG := resetFixtures()
 		fakePG.SetQueryRow("WHERE promocode_id = $1", stubPromoRow(7, "SUMMER", 20, 100, "ACTIVE"))
 
 		promoRepo, _ := service.NewPromocodeRepo(fakePG)
@@ -460,7 +460,7 @@ func TestAllureApplyPromocode(t *testing.T) {
 		subRow := stubSubRow(subID, userID, 1, 1000, "usual", firstOfNextMonth, firstOfNextMonth.AddDate(0, 1, 0))
 		promoRow := stubPromoRow(5, "SUMMER", 20, 100, "ACTIVE")
 
-		fakePG := testutil.NewFakePgPool()
+		fakePG := resetFixtures()
 		fakePG.Tx().OnQueryRow("SELECT s.sub_id", subRow)
 		fakePG.SetQueryRow("WHERE promocode = $1", promoRow)
 		fakePG.Tx().OnExec("UPDATE subscriptions", testutil.CommandTagUpdate(1))
@@ -520,7 +520,7 @@ func TestAllurePurchaseSubscription(t *testing.T) {
 
 		ctx := context.Background()
 		userID := testutil.TestUUID()
-		fakePG := testutil.NewFakePgPool()
+		fakePG := resetFixtures()
 		fakePG.SetQueryRow("FROM users", testutil.NewStubRow(
 			userID, "alice@example.com", "secret", "Alice", 25, 1000, "REF123", "user",
 		))
@@ -587,7 +587,7 @@ func TestAllureTotalCosts(t *testing.T) {
 		feb1 := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
 		mar1 := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 
-		fakePG := testutil.NewFakePgPool()
+		fakePG := resetFixtures()
 		fakePG.SetQuery("SELECT sub_id FROM subscriptions", testutil.NewStubRows([]any{1}))
 		fakePG.Tx().OnQueryRow("SELECT s.sub_id", stubSubRow(1, userID, 1, 100, "usual", jan1, feb1))
 

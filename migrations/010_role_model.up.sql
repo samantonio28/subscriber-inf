@@ -125,7 +125,13 @@ END
 $$;
 
 -- Даем пользователю app право на подключение и выполнение функций
-GRANT CONNECT ON DATABASE dev TO app;
+-- (имя БД определяется динамически, чтобы миграция работала на любом инстансе,
+--  в т.ч. на отдельной тестовой БД `test`)
+DO $$
+BEGIN
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO app', current_database());
+END
+$$;
 GRANT USAGE ON SCHEMA public TO app;
 GRANT EXECUTE ON FUNCTION set_role_by_user_id(UUID) TO app;
 

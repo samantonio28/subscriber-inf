@@ -1,0 +1,219 @@
+# GitHub Actions CI/CD для лабораторной работы №2.
+#
+# Пайплайн: build → unit → integration → e2e → report.
+#   - build собирает тестовый docker-контейнер (Dockerfile.test) и пушит его в GHCR;
+#   - unit/integration/e2e запускают тесты ВНУТРИ этого контейнера (container:);
+#   - порядок unit → integration → e2e задаётся `needs` (если этап упал, следующие
+#     не запускаются и помечаются skipped);
+#   - report генерирует отчёт всегда (if: always()), с историей allure для трендов.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  # Переиспользуем модульный кэш Go из образа (в нём /go/pkg/mod).
+  GOPATH: /go
+  POSTGRES_DB: test
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: secret
+  TEST_DATABASE_URL: postgres://postgres:secret@localhost:5432/test?sslmode=disable
+  TEST_REDIS_ADDR: localhost:6379
+
+jobs:
+  # --- 1. Сборка тестового контейнера ---
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push test image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.test
+          push: true
+          tags: ghcr.io/${{ github.repository }}/test:latest
+
+  # --- 2. Unit-тесты (без БД: mock/stub) + allure-результаты ---
+  unit:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository }}/test:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # internal/api и pkg/clients в .gitignore и не коммитятся — генерируем их.
+      - name: Generate OpenAPI code
+        run: go generate ./...
+
+      - name: Run unit tests
+        env:
+          ALLURE_OUTPUT_FOLDER: allure-results
+        run: gotestsum --junitfile unit.xml -- go test -short -tags allure ./...
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-results
+          path: |
+            unit.xml
+            allure-results/
+          if-no-files-found: ignore
+
+  # --- 3. Integration-тесты (реальный PostgreSQL + Redis) ---
+  integration:
+    needs: unit
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository }}/test:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate OpenAPI code
+        run: go generate ./...
+
+      - name: Apply migrations
+        run: |
+          for f in migrations/*.sql; do
+            PGPASSWORD="$POSTGRES_PASSWORD" psql -h localhost -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      # -p 1 сериализует пакеты: разные пакеты работают с одной общей БД.
+      - name: Run integration tests
+        run: gotestsum --junitfile integration.xml -- go test -p 1 -tags integration -run Integration ./...
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-results
+          path: integration.xml
+          if-no-files-found: ignore
+
+  # --- 4. E2E-тест демонстрационного сценария ---
+  e2e:
+    needs: integration
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository }}/test:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate OpenAPI code
+        run: go generate ./...
+
+      - name: Apply migrations
+        run: |
+          for f in migrations/*.sql; do
+            PGPASSWORD="$POSTGRES_PASSWORD" psql -h localhost -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: Run E2E test
+        run: gotestsum --junitfile e2e.xml -- go test -p 1 -tags e2e ./test/e2e/...
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: e2e.xml
+          if-no-files-found: ignore
+
+  # --- 5. Отчёт: генерируется всегда, с историей для трендов (allure) ---
+  report:
+    needs: [unit, integration, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository }}/test:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Download all results
+        uses: actions/download-artifact@v4
+        with:
+          path: results
+
+      - name: Restore allure history
+        uses: actions/cache@v4
+        with:
+          path: allure-report/history
+          key: allure-history-${{ github.ref_name }}
+          restore-keys: |
+            allure-history-
+
+      - name: Generate allure report
+        run: |
+          mkdir -p allure-results
+          cp -r results/unit-results/allure-results/* allure-results/ 2>/dev/null || true
+          if [ -d allure-report/history ]; then cp -r allure-report/history allure-results/history; fi
+          allure generate allure-results -o allure-report --clean
+
+      - name: Upload allure report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report/
+          if-no-files-found: ignore

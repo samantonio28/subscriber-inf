@@ -9,3 +9,4 @@ gitlab_repo
 *.log
 allure-results*
 *.out
+coverage.xml

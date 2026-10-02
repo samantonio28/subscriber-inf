@@ -1,0 +1,52 @@
+# Тестовый стенд для лабораторной работы №2.
+#
+# Отдельный инстанс хранилища (PostgreSQL) и кэша (Redis), который используется
+# интеграционными и E2E-тестами. Изолирован от боевого/дев-стенда из
+# docker-compose.yml: другой порт, другая БД, свой volume — тесты не влияют на
+# данные разработки, и наоборот.
+#
+# Запуск:
+#   docker compose -f docker-compose.test.yml up -d
+#
+# После подъёма Postgres автоматически применяет миграции из ./migrations
+# (см. /docker-entrypoint-initdb.d) к БД `test`.
+
+services:
+  postgres_test:
+    image: postgres:15-alpine
+    container_name: subscriber-inf-postgres-test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: test
+    ports:
+      - "8002:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  redis_test:
+    image: redis:7-alpine
+    container_name: subscriber-inf-redis-test
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_test_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: always
+
+volumes:
+  postgres_test_data:
+    driver: local
+  redis_test_data:
+    driver: local
