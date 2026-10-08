@@ -254,15 +254,7 @@ jobs:
 
   report:
     name: "Отчёт Allure (с историей для трендов)"
-    needs:
-      - job: unit
-        optional: true
-      - job: integration
-        optional: true
-      - job: e2e
-        optional: true
-      - job: build-test
-        optional: true
+    needs: [unit, integration, e2e, build-test]
     if: always()
     runs-on: ubuntu-latest
     container:
