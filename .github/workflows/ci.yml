@@ -232,20 +232,18 @@ jobs:
             if [ "$code" != "000" ]; then echo "==> сервис готов (HTTP $code)"; break; fi
             echo "==> жду сервис..."; sleep 2
           done
-      - name: "Запуск E2E-теста против сервиса"
+      - name: "Запуск E2E-теста против сервиса (видны все запросы/ответы)"
         env:
           ALLURE_OUTPUT_FOLDER: ${{ github.workspace }}/allure-results
         run: |
-          echo "==> e2e: go test -p 1 -tags e2e ./test/e2e/..."
-          gotestsum --junitfile e2e.xml -- -p 1 -tags e2e ./test/e2e/...
-      - name: "Публикация результатов (JUnit + allure)"
+          echo "==> e2e: go test -v -p 1 -tags e2e ./test/e2e/..."
+          go test -p 1 -tags e2e -v ./test/e2e/...
+      - name: "Публикация результатов (allure)"
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-results
-          path: |
-            e2e.xml
-            allure-results/
+          path: allure-results/
           if-no-files-found: ignore
 
   # ============================================================================

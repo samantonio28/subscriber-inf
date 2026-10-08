@@ -12,6 +12,7 @@ package e2e
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -33,16 +34,30 @@ func baseURL() string {
 }
 
 // doJSON выполняет HTTP-запрос с JSON-телом и опциональным заголовком X-User-ID
-// (аутентификация). Возвращает сырой *http.Response.
+// (аутентификация). Логирует запрос в curl-подобном виде и возвращает *http.Response.
 func doJSON(t testing.TB, url, method, path, userHeader string, body map[string]any) *http.Response {
 	t.Helper()
-	var rdr io.Reader
+	var bodyBytes []byte
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
 			t.Fatalf("marshal body: %v", err)
 		}
-		rdr = bytes.NewReader(b)
+		bodyBytes = b
+	}
+
+	// --- лог запроса (curl-подобный) ---
+	fmt.Printf("\n▶ %s %s%s\n", method, url, path)
+	if userHeader != "" {
+		fmt.Printf("   X-User-ID: %s\n", userHeader)
+	}
+	if len(bodyBytes) > 0 {
+		fmt.Printf("   body: %s\n", bodyBytes)
+	}
+
+	var rdr io.Reader
+	if bodyBytes != nil {
+		rdr = bytes.NewReader(bodyBytes)
 	}
 	req, err := http.NewRequest(method, url+path, rdr)
 	if err != nil {
@@ -59,10 +74,16 @@ func doJSON(t testing.TB, url, method, path, userHeader string, body map[string]
 	return resp
 }
 
+// decode читает и логирует тело ответа, затем декодирует его в v.
 func decode(t testing.TB, resp *http.Response, v any) {
 	t.Helper()
 	defer resp.Body.Close()
-	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read response body: %v", err)
+	}
+	fmt.Printf("◀ %s\n   body: %s\n", resp.Status, bodyBytes)
+	if err := json.Unmarshal(bodyBytes, v); err != nil {
 		t.Fatalf("decode response (%s): %v", resp.Status, err)
 	}
 }
@@ -72,10 +93,12 @@ func decode(t testing.TB, resp *http.Response, v any) {
 func requireStatus(s provider.StepCtx, resp *http.Response, want int, desc string) {
 	if resp.StatusCode == want {
 		resp.Body.Close()
+		fmt.Printf("◀ %s\n", resp.Status)
 		return
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
+	fmt.Printf("◀ %s (unexpected)\n   body: %s\n", resp.Status, body)
 	s.Require().Equal(want, resp.StatusCode, "%s: got status %d, body=%s", desc, resp.StatusCode, body)
 }
 
