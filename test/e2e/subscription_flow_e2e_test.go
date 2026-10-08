@@ -1,9 +1,12 @@
 //go:build e2e
 
 // Package e2e содержит сквозной (end-to-end) тест демонстрационного сценария
-// сервиса подписок. Тест поднимает реальный HTTP-сервер (delivery.BuildHandler)
-// с реальными репозиториями и реальными тестовыми PostgreSQL/Redis, и гоняет
-// сценарий целиком через HTTP — так, как это делал бы фронтенд.
+// сервиса подписок. Тест работает с РЕАЛЬНО развёрнутым сервисом (отдельный
+// процесс/контейнер на порту 8080) и реальными PostgreSQL/Redis: сбрасывает и
+// сидирует тестовую БД, после чего гоняет сценарий целиком через HTTP — так,
+// как это делал бы фронтенд.
+//
+// Адрес сервиса задаётся переменной BASE_URL (по умолчанию http://localhost:8080).
 package e2e
 
 import (
@@ -11,7 +14,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strconv"
 	"testing"
@@ -19,17 +21,15 @@ import (
 
 	"github.com/ozontech/allure-go/pkg/framework/provider"
 	"github.com/ozontech/allure-go/pkg/framework/runner"
-	"github.com/samantonio28/subscriber-inf/internal/delivery"
-	"github.com/samantonio28/subscriber-inf/internal/logger"
-	"github.com/samantonio28/subscriber-inf/internal/redis"
 	"github.com/samantonio28/subscriber-inf/internal/testutil/testdb"
 )
 
-func redisAddr() string {
-	if v := os.Getenv("TEST_REDIS_ADDR"); v != "" {
+// baseURL возвращает адрес развёрнутого сервиса (переопределяется через BASE_URL).
+func baseURL() string {
+	if v := os.Getenv("BASE_URL"); v != "" {
 		return v
 	}
-	return "localhost:6380"
+	return "http://localhost:8080"
 }
 
 // doJSON выполняет HTTP-запрос с JSON-телом и опциональным заголовком X-User-ID
@@ -84,26 +84,13 @@ func requireStatus(s provider.StepCtx, resp *http.Response, want int, desc strin
 func TestSubscriptionFlowE2E(t *testing.T) {
 	runner.Run(t, "Subscription flow E2E", func(pt provider.T) {
 		pt.Feature("SubscriptionFlow")
-		pt.Description("Сквозной HTTP-сценарий MVP: пользователь покупает подписку, видит её в списке, " +
-			"запрашивает общую стоимость; администратор создаёт промокод; пользователь применяет его и получает скидку.")
+		pt.Description("Сквозной HTTP-сценарий MVP против реально развёрнутого сервиса: пользователь покупает подписку, " +
+			"видит её в списке, запрашивает общую стоимость; администратор создаёт промокод; пользователь применяет его и получает скидку.")
 
-		// --- Arrange: тестовое окружение и HTTP-сервер ---
-		pool := testdb.Connect(pt)
-		testdb.Reset(pt, pool)
+		// --- Arrange: одной строкой подключаемся к тестовой БД и сбрасываем её
+		// (сервис подключён к этой же БД и увидит сидированные ниже данные). ---
+		pool := testdb.Setup(pt)
 
-		redisClient, err := redis.NewRedisClient(redisAddr())
-		pt.Require().NoError(err, "Redis должен подключиться к тестовому стенду")
-		pt.Cleanup(func() { _ = redisClient.Close() })
-
-		lg, err := logger.NewLogrusLogger("logs/e2e_access.log")
-		pt.Require().NoError(err, "логгер должен создаться")
-
-		handler, err := delivery.BuildHandler(pool, redisClient, lg)
-		pt.Require().NoError(err, "HTTP-обработчик должен собраться из реальных репозиториев")
-		srv := httptest.NewServer(handler)
-		defer srv.Close()
-
-		// Базовые сущности: сервис, план, покупатель и администратор.
 		svc := testdb.SeedService(pt, pool, "Netflix")
 		plan := testdb.SeedPlan(pt, pool, svc, "Netflix Basic", 30, 299)
 		customer := testdb.SeedUser(pt, pool, "customer@example.com", 1000, "user")
@@ -111,9 +98,10 @@ func TestSubscriptionFlowE2E(t *testing.T) {
 
 		const price = 299
 		var subID int64
+		url := baseURL()
 
 		pt.WithNewStep("1. Покупка подписки (customer)", func(s provider.StepCtx) {
-			resp := doJSON(pt, srv.URL, http.MethodPost, "/subscriptions/purchase", customer.String(), map[string]any{
+			resp := doJSON(pt, url, http.MethodPost, "/subscriptions/purchase", customer.String(), map[string]any{
 				"user_id":       customer.String(),
 				"service_name":  "Netflix",
 				"plan_id":       plan,
@@ -131,7 +119,7 @@ func TestSubscriptionFlowE2E(t *testing.T) {
 				UserID      string `json:"user_id"`
 				SubType     string `json:"sub_type"`
 			}
-			resp := doJSON(pt, srv.URL, http.MethodGet, "/subscriptions?uuid="+customer.String(), customer.String(), nil)
+			resp := doJSON(pt, url, http.MethodGet, "/subscriptions?uuid="+customer.String(), customer.String(), nil)
 			var subs []subItem
 			decode(pt, resp, &subs)
 			s.Require().Equal(1, len(subs), "у покупателя должна быть ровно одна подписка")
@@ -144,7 +132,7 @@ func TestSubscriptionFlowE2E(t *testing.T) {
 			now := time.Now()
 			startDate := now.Format("01-2006")
 			endDate := now.AddDate(0, 1, 0).Format("01-2006")
-			resp := doJSON(pt, srv.URL, http.MethodPost, "/total_costs", customer.String(), map[string]any{
+			resp := doJSON(pt, url, http.MethodPost, "/total_costs", customer.String(), map[string]any{
 				"start_date": startDate,
 				"end_date":   endDate,
 				"filter": map[string]any{
@@ -160,7 +148,7 @@ func TestSubscriptionFlowE2E(t *testing.T) {
 		})
 
 		pt.WithNewStep("4. Администратор создаёт промокод SAVE20", func(s provider.StepCtx) {
-			resp := doJSON(pt, srv.URL, http.MethodPost, "/promocodes", admin.String(), map[string]any{
+			resp := doJSON(pt, url, http.MethodPost, "/promocodes", admin.String(), map[string]any{
 				"service_id":    svc,
 				"value":         "SAVE20",
 				"discount":      20,
@@ -171,7 +159,7 @@ func TestSubscriptionFlowE2E(t *testing.T) {
 		})
 
 		pt.WithNewStep("5. Применение промокода со скидкой 20%", func(s provider.StepCtx) {
-			resp := doJSON(pt, srv.URL, http.MethodPost, "/subscriptions/"+strconv.FormatInt(subID, 10)+"/apply-promocode", customer.String(), map[string]any{
+			resp := doJSON(pt, url, http.MethodPost, "/subscriptions/"+strconv.FormatInt(subID, 10)+"/apply-promocode", customer.String(), map[string]any{
 				"promocode": "SAVE20",
 			})
 			var applied struct {

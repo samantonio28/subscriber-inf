@@ -58,6 +58,16 @@ func Reset(t testing.TB, pool *pgxpool.Pool) {
 	}
 }
 
+// Setup одной строкой «поднимает» соединение с тестовой БД и сбрасывает её к
+// чистому состоянию: подключается к инстансу хранилища и очищает все таблицы.
+// Возвращает пул подключений, готовый к работе теста.
+func Setup(t testing.TB) *pgxpool.Pool {
+	t.Helper()
+	pool := Connect(t)
+	Reset(t, pool)
+	return pool
+}
+
 // TruncateAll очищает все таблицы (TRUNCATE ... CASCADE RESTART IDENTITY).
 // Порядок не важен: CASCADE обрывает внешние ключи, а полный список таблиц
 // гарантирует, что ничего не останется.

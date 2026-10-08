@@ -1,11 +1,11 @@
 # GitHub Actions CI/CD для лабораторной работы №2.
 #
-# Пайплайн: build → unit → integration → e2e → report.
-#   - build собирает тестовый docker-контейнер (Dockerfile.test) и пушит его в GHCR;
-#   - unit/integration/e2e запускают тесты ВНУТРИ этого контейнера (container:);
-#   - порядок unit → integration → e2e задаётся `needs` (если этап упал, следующие
-#     не запускаются и помечаются skipped);
-#   - report генерирует отчёт всегда (if: always()), с историей allure для трендов.
+# Пайплайн собирает ТРИ docker-образа (сервис, PostgreSQL, тестовый контейнер) и
+# прогоняет тесты в порядке unit → integration → e2e, где E2E гоняется против
+# реально развёрнутого сервиса + PostgreSQL.
+#
+# Порядок обеспечивается `needs`: если этап упал, следующие не запускаются
+# (помечаются skipped). Отчёт генерируется всегда (if: always()).
 
 name: CI
 
@@ -19,27 +19,74 @@ env:
   POSTGRES_DB: test
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: secret
+  # Тесты (integration/e2e) ходят в БД/Redis по имени сервиса внутри docker-сети.
   TEST_DATABASE_URL: postgres://postgres:secret@postgres:5432/test?sslmode=disable
   TEST_REDIS_ADDR: redis:6379
 
 jobs:
-  # --- 1. Сборка тестового контейнера ---
-  build:
+  # ============================================================================
+  # 1. Сборка трёх docker-образов (сервис, postgres, тестовый контейнер)
+  # ============================================================================
+
+  build-service:
+    name: "Build: сервис (Dockerfile)"
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Log in to GHCR
+      - name: "Login в GHCR"
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Сборка и push образа сервиса"
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/service:latest
 
-      - name: Build and push test image
+  build-postgres:
+    name: "Build: PostgreSQL (Dockerfile.postgres)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Login в GHCR"
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Сборка и push образа PostgreSQL (с миграциями)"
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.postgres
+          push: true
+          tags: ghcr.io/${{ github.repository }}/postgres:latest
+
+  build-test:
+    name: "Build: тестовый контейнер (Dockerfile.test)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Login в GHCR"
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Сборка и push тестового контейнера"
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -47,9 +94,13 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository }}/test:latest
 
-  # --- 2. Unit-тесты (без БД: mock/stub) + allure-результаты ---
+  # ============================================================================
+  # 2. Этап unit → integration → e2e
+  # ============================================================================
+
   unit:
-    needs: build
+    name: "Этап 1/3 — Unit-тесты"
+    needs: build-test
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/${{ github.repository }}/test:latest
@@ -58,17 +109,15 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-
-      # internal/api и pkg/clients в .gitignore и не коммитятся — генерируем их.
-      - name: Generate OpenAPI code
+      - name: "Генерация OpenAPI-кода (internal/api в .gitignore)"
         run: go generate
-
-      - name: Run unit tests
+      - name: "Запуск unit-тестов (без БД: mock/stub)"
         env:
           ALLURE_OUTPUT_FOLDER: ${{ github.workspace }}/allure-results
-        run: gotestsum --junitfile unit.xml -- -short -tags allure ./...
-
-      - name: Upload results
+        run: |
+          echo "==> unit: go test -short -tags allure ./..."
+          gotestsum --junitfile unit.xml -- -short -tags allure ./...
+      - name: "Публикация результатов (JUnit + allure)"
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -78,9 +127,9 @@ jobs:
             allure-results/
           if-no-files-found: ignore
 
-  # --- 3. Integration-тесты (реальный PostgreSQL + Redis) ---
   integration:
-    needs: unit
+    name: "Этап 2/3 — Integration-тесты (реальная БД)"
+    needs: [unit, build-postgres]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/${{ github.repository }}/test:latest
@@ -89,7 +138,7 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     services:
       postgres:
-        image: postgres:15-alpine
+        image: ghcr.io/${{ github.repository }}/postgres:latest
         env:
           POSTGRES_DB: test
           POSTGRES_USER: postgres
@@ -107,23 +156,23 @@ jobs:
           - 6379:6379
     steps:
       - uses: actions/checkout@v4
-
-      - name: Generate OpenAPI code
+      - name: "Генерация OpenAPI-кода"
         run: go generate
-
-      - name: Apply migrations
+      - name: "Ожидание применения миграций (таблица users)"
         run: |
-          for f in migrations/*.sql; do
-            PGPASSWORD="$POSTGRES_PASSWORD" psql -h postgres -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f "$f"
+          for i in $(seq 1 30); do
+            if PGPASSWORD="$POSTGRES_PASSWORD" psql -h postgres -U postgres -d test -tAc "SELECT 1 FROM users LIMIT 1" >/dev/null 2>&1; then
+              echo "==> схема БД готова (миграции применены)"; break
+            fi
+            echo "==> жду миграции..."; sleep 2
           done
-
-      # -p 1 сериализует пакеты: разные пакеты работают с одной общей БД.
-      - name: Run integration tests
+      - name: "Запуск integration-тестов (реальная БД)"
         env:
           ALLURE_OUTPUT_FOLDER: ${{ github.workspace }}/allure-results
-        run: gotestsum --junitfile integration.xml -- -p 1 -tags integration -run Integration ./...
-
-      - name: Upload results
+        run: |
+          echo "==> integration: go test -p 1 -tags integration -run Integration ./..."
+          gotestsum --junitfile integration.xml -- -p 1 -tags integration -run Integration ./...
+      - name: "Публикация результатов (JUnit + allure)"
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -133,9 +182,9 @@ jobs:
             allure-results/
           if-no-files-found: ignore
 
-  # --- 4. E2E-тест демонстрационного сценария ---
   e2e:
-    needs: integration
+    name: "Этап 3/3 — E2E-тест (развёрнутый сервис + БД)"
+    needs: [integration, build-service, build-postgres]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/${{ github.repository }}/test:latest
@@ -144,7 +193,7 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
     services:
       postgres:
-        image: postgres:15-alpine
+        image: ghcr.io/${{ github.repository }}/postgres:latest
         env:
           POSTGRES_DB: test
           POSTGRES_USER: postgres
@@ -160,24 +209,36 @@ jobs:
         image: redis:7-alpine
         ports:
           - 6379:6379
+      app:
+        image: ghcr.io/${{ github.repository }}/service:latest
+        env:
+          CONFIG_PATH: configs/postgres_ci.yaml
+          REDIS_URL: redis:6379
+    env:
+      # E2E-тест бьёт по развёрнутому сервису (имя сервиса в docker-сети).
+      BASE_URL: http://app:8080
     steps:
       - uses: actions/checkout@v4
-
-      - name: Generate OpenAPI code
-        run: go generate
-
-      - name: Apply migrations
+      - name: "Ожидание схемы БД и готовности сервиса"
         run: |
-          for f in migrations/*.sql; do
-            PGPASSWORD="$POSTGRES_PASSWORD" psql -h postgres -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f "$f"
+          for i in $(seq 1 30); do
+            if PGPASSWORD="$POSTGRES_PASSWORD" psql -h postgres -U postgres -d test -tAc "SELECT 1 FROM users LIMIT 1" >/dev/null 2>&1; then
+              echo "==> схема БД готова"; break
+            fi
+            echo "==> жду миграции..."; sleep 2
           done
-
-      - name: Run E2E test
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://app:8080/subscriptions?uuid=00000000-0000-0000-0000-000000000000 || true)
+            if [ "$code" != "000" ]; then echo "==> сервис готов (HTTP $code)"; break; fi
+            echo "==> жду сервис..."; sleep 2
+          done
+      - name: "Запуск E2E-теста против сервиса"
         env:
           ALLURE_OUTPUT_FOLDER: ${{ github.workspace }}/allure-results
-        run: gotestsum --junitfile e2e.xml -- -p 1 -tags e2e ./test/e2e/...
-
-      - name: Upload results
+        run: |
+          echo "==> e2e: go test -p 1 -tags e2e ./test/e2e/..."
+          gotestsum --junitfile e2e.xml -- -p 1 -tags e2e ./test/e2e/...
+      - name: "Публикация результатов (JUnit + allure)"
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -187,9 +248,21 @@ jobs:
             allure-results/
           if-no-files-found: ignore
 
-  # --- 5. Отчёт: генерируется всегда, с историей для трендов (allure) ---
+  # ============================================================================
+  # 3. Отчёт (генерируется всегда)
+  # ============================================================================
+
   report:
-    needs: [unit, integration, e2e]
+    name: "Отчёт Allure (с историей для трендов)"
+    needs:
+      - job: unit
+        optional: true
+      - job: integration
+        optional: true
+      - job: e2e
+        optional: true
+      - job: build-test
+        optional: true
     if: always()
     runs-on: ubuntu-latest
     container:
@@ -198,12 +271,12 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Download all results
+      - name: "Скачивание результатов всех этапов"
         uses: actions/download-artifact@v4
         with:
           path: results
 
-      - name: Restore allure history
+      - name: "Восстановление истории allure (тренды)"
         uses: actions/cache@v4
         with:
           path: allure-report/history
@@ -211,7 +284,7 @@ jobs:
           restore-keys: |
             allure-history-
 
-      - name: Generate allure report
+      - name: "Генерация allure-отчёта"
         run: |
           mkdir -p allure-results
           cp -r results/unit-results/allure-results/* allure-results/ 2>/dev/null || true
@@ -220,7 +293,7 @@ jobs:
           if [ -d allure-report/history ]; then cp -r allure-report/history allure-results/history; fi
           allure generate allure-results -o allure-report --clean
 
-      - name: Upload allure report
+      - name: "Публикация allure-отчёта"
         if: always()
         uses: actions/upload-artifact@v4
         with:
