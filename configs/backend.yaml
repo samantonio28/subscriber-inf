@@ -1,5 +1,0 @@
-package: subscriptions_client
-generate:
-  client: true
-  models: true
-output: generated/client.go
