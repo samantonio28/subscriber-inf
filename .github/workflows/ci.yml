@@ -273,6 +273,7 @@ jobs:
           key: allure-history-${{ github.ref_name }}
           restore-keys: |
             allure-history-
+          save-always: true
 
       - name: "Генерация allure-отчёта"
         run: |
