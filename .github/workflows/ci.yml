@@ -266,35 +266,16 @@ jobs:
         with:
           path: results
 
-      - name: "Восстановление истории allure (тренды)"
-        uses: actions/cache/restore@v4
-        with:
-          path: allure-report/history
-          key: allure-history-${{ github.run_id }}
-          restore-keys: |
-            allure-history-
-
       - name: "Генерация allure-отчёта"
         run: |
           mkdir -p allure-results
           cp -r results/unit-results/allure-results/* allure-results/ 2>/dev/null || true
           cp -r results/integration-results/allure-results/* allure-results/ 2>/dev/null || true
           cp -r results/e2e-results/allure-results/* allure-results/ 2>/dev/null || true
-          # Скопировать историю из отчёта в results (для allure generate)
-          if [ -d allure-report/history ]; then cp -r allure-report/history allure-results/history; fi
-          # Очистить прошлый отчёт, НО сохранить history/ — иначе история трендов потеряется.
-          if [ -d allure-report ]; then
-            find allure-report -mindepth 1 -maxdepth 1 ! -name history -exec rm -rf {} + 2>/dev/null || true
-          fi
-          # Генерировать БЕЗ --clean: allure сам прочитает history и дополнит.
-          allure generate allure-results -o allure-report
-
-      - name: "Сохранение истории allure (тренды)"
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: allure-report/history
-          key: allure-history-${{ github.run_id }}
+          # Подкинуть прошлую историю (из ветки gh-pages) в результаты — allure её дополнит.
+          mkdir -p allure-results/history
+          curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/gh-pages/history/history.json" -o allure-results/history/history.json || true
+          allure generate allure-results -o allure-report --clean
 
       - name: "Публикация allure-отчёта"
         if: always()
@@ -327,3 +308,5 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./allure-report
+          force_orphan: false
+          keep_files: true
