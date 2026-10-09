@@ -280,8 +280,14 @@ jobs:
           cp -r results/unit-results/allure-results/* allure-results/ 2>/dev/null || true
           cp -r results/integration-results/allure-results/* allure-results/ 2>/dev/null || true
           cp -r results/e2e-results/allure-results/* allure-results/ 2>/dev/null || true
+          # Скопировать историю из отчёта в results (для allure generate)
           if [ -d allure-report/history ]; then cp -r allure-report/history allure-results/history; fi
-          allure generate allure-results -o allure-report --clean
+          # Очистить прошлый отчёт, НО сохранить history/ — иначе история трендов потеряется.
+          if [ -d allure-report ]; then
+            find allure-report -mindepth 1 -maxdepth 1 ! -name history -exec rm -rf {} + 2>/dev/null || true
+          fi
+          # Генерировать БЕЗ --clean: allure сам прочитает history и дополнит.
+          allure generate allure-results -o allure-report
 
       - name: "Сохранение истории allure (тренды)"
         if: always()
