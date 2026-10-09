@@ -290,3 +290,27 @@ jobs:
           name: allure-report
           path: allure-report/
           if-no-files-found: ignore
+
+  # ============================================================================
+  # 4. Публикация allure-отчёта в GitHub Pages
+  # ============================================================================
+
+  deploy-pages:
+    name: "Публикация allure-отчёта в GitHub Pages"
+    needs: report
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: "Скачивание allure-отчёта"
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report
+
+      - name: "Деплой в ветку gh-pages"
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./allure-report
