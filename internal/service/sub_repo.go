@@ -317,7 +317,7 @@ func (s *SubRepo) subsTotalCostsBackend(ctx context.Context, filter domain.SubsF
 		if filter.SubType.String() != "" && sub.SubType != filter.SubType {
 			continue
 		}
-		if sub.ServiceName != filter.ServiceName {
+		if filter.ServiceName != "" && sub.ServiceName != filter.ServiceName {
 			continue
 		}
 		st := sub.StartDate

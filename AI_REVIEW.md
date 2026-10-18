@@ -18,3 +18,13 @@
 - **Проверки:** Redocly lint → 0 ошибок; Prism mock → 4-шаговый сценарий прошёл (201/200/201/200).
 - **Принятое решение:** действия переосмыслены в REST — `apply-promocode` → `PATCH /subscriptions/{id}` (поле `promocode`), `purchase` → `POST /subscriptions` (`plan_id`), `total_costs` → `GET /total-costs`.
 - **Уточнение (управление изменением):** разделены `UserCreate` (вход, с паролем) и `UserResponse` (выход, без пароля) — утечка `password` в ответе устранена.
+
+## WebLab #3 — REST API Developer
+
+- **Задача:** реализовать REST API по `openapi.yaml` (OpenAPI 3.1, `/api/v2`) + Swagger UI + перенос TUI на API + версии v1/v2 + тесты контракта.
+- **Инструмент/модель:** Claude Code + oapi-codegen v2.8.0 (кодогенерация), Redocly (линтер), Prism (mock), gomock (тесты).
+- **Ссылки на результат:** `openapi.yaml`, `internal/api/v2/`, `internal/delivery/server_v2.go`, `internal/domain/service.go`, `internal/service/service_repo.go`, `cmd/cli/main.go`, `internal/delivery/server_v2_test.go`, `WebLab3.md`.
+- **Проверки:** Redocly → 0 ошибок; Prism → 4-шаговый сценарий; curl → все 26 методов v2; CLI → read+write; `go test` → ok; демонстрация намеренного нарушения контракта (красный → зелёный).
+- **Принятое решение:** новый API на `/api/v2`, старый оставлен на `/api/v1` и `/` (для SPA); TUI переведён на HTTP-клиент (`pkg/clients/apiv2`).
+- **Исправленные баги (ревью):** `PUT /subscriptions` (пустой `service_name`), `PUT /promocodes` (пустой `expires_at`), `total-costs` (фильтр `service_name` отбрасывал всё).
+- **Уточнение:** конфиг БД сведён к одному `configs/database.yaml` (удалены `postgres.yaml` и осиротевшая структура `DatabaseConfig`).

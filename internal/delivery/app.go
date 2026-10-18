@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/api"
+	apiv2 "github.com/samantonio28/subscriber-inf/internal/api/v2"
 	"github.com/samantonio28/subscriber-inf/internal/logger"
 	"github.com/samantonio28/subscriber-inf/internal/redis"
 	"github.com/samantonio28/subscriber-inf/internal/service"
@@ -19,7 +20,7 @@ import (
 )
 
 func App() {
-	cfg, err := config.LoadConfig("configs/postgres.yaml")
+	cfg, err := config.LoadConfig("configs/database.yaml")
 	if err != nil {
 		log.Fatal("Failed to load config:", err)
 	}
@@ -78,6 +79,11 @@ func App() {
 		log.Fatal("Failed to create user service repo:", err)
 	}
 
+	serviceRepo, err := service.NewServiceRepo(pool)
+	if err != nil {
+		log.Fatal("Failed to create service repo:", err)
+	}
+
 	statsService, err := service.NewStatsService(pool, redisClient)
 	if err != nil {
 		log.Fatal("Failed to create stats repo:", err)
@@ -106,10 +112,15 @@ func App() {
 
 	r := api.Handler(serverImpl)
 
+	serverV2 := NewServerV2(serverImpl, serviceRepo)
+	rV2 := apiv2.Handler(serverV2)
+
 	rWithMiddleware := mux.NewRouter()
 	rWithMiddleware.Use(CORSMiddleware())
 	rWithMiddleware.Use(AuthMiddleware(userRepo))
 	rWithMiddleware.Use(AccessLogMiddleware(logger))
+	rWithMiddleware.PathPrefix("/api/v2").Handler(rV2)
+	rWithMiddleware.PathPrefix("/api/v1").Handler(http.StripPrefix("/api/v1", r))
 	rWithMiddleware.PathPrefix("/").Handler(r)
 
 	server := http.Server{

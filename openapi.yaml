@@ -2,10 +2,10 @@ openapi: 3.1.0
 
 info:
   title: Subscriber Inf API
-  version: 1.0.0
+  version: 2.0.0
   description: |
     Публичное REST API сервиса управления подписками.
-    Версия v1 спроектирована в рамках WebLab #2 на основе требований и сценариев WebLab #1.
+    Версия v2 спроектирована в рамках WebLab #2 на основе требований и сценариев WebLab #1.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -31,7 +31,7 @@ tags:
 
 paths:
   # ================= users =================
-  /api/v1/users:
+  /api/v2/users:
     post:
       tags: [users]
       summary: Создать пользователя
@@ -58,7 +58,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/v1/users/{user_id}:
+  /api/v2/users/{user_id}:
     parameters:
       - $ref: '#/components/parameters/UserId'
     get:
@@ -76,7 +76,7 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # ================= services =================
-  /api/v1/services:
+  /api/v2/services:
     get:
       tags: [services]
       summary: Список сервисов
@@ -110,7 +110,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/services/{service_id}:
+  /api/v2/services/{service_id}:
     parameters:
       - $ref: '#/components/parameters/ServiceId'
     get:
@@ -156,7 +156,7 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # ================= subscription-plans =================
-  /api/v1/subscription-plans:
+  /api/v2/subscription-plans:
     get:
       tags: [subscription-plans]
       summary: Список тарифов (с фильтрацией)
@@ -203,7 +203,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/subscription-plans/{plan_id}:
+  /api/v2/subscription-plans/{plan_id}:
     parameters:
       - $ref: '#/components/parameters/PlanId'
     get:
@@ -268,7 +268,7 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # ================= subscriptions =================
-  /api/v1/subscriptions:
+  /api/v2/subscriptions:
     get:
       tags: [subscriptions]
       summary: Список подписок пользователя
@@ -315,7 +315,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/v1/subscriptions/{sub_id}:
+  /api/v2/subscriptions/{sub_id}:
     parameters:
       - $ref: '#/components/parameters/SubId'
     get:
@@ -389,7 +389,7 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # ================= promocodes =================
-  /api/v1/promocodes:
+  /api/v2/promocodes:
     get:
       tags: [promocodes]
       summary: Список промокодов (с фильтрацией)
@@ -441,7 +441,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/promocodes/{promocode_id}:
+  /api/v2/promocodes/{promocode_id}:
     parameters:
       - $ref: '#/components/parameters/PromocodeId'
     get:
@@ -487,7 +487,7 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # ================= analytics =================
-  /api/v1/total-costs:
+  /api/v2/total-costs:
     get:
       tags: [analytics]
       summary: Итоговые затраты за период
@@ -517,7 +517,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/stats/overview:
+  /api/v2/stats/overview:
     get:
       tags: [analytics]
       summary: Сводная статистика системы

@@ -30,7 +30,8 @@
 - `WebLab1.md` — цель, требования (функц./нефункц.), сценарии, диаграммы.
 - ADR — раздел 11 в `WebLab1.md` (ADR-1: PostgreSQL+Redis; ADR-2: модульный монолит).
 - `doc.yaml` — OpenAPI 3.0, текущий источник истины для кодогенерации (`go generate`).
-- `openapi.yaml` — целевой REST OpenAPI 3.1 (`/api/v1`), результат WebLab #2; `WebLab2.md` — его документация.
+- `openapi.yaml` — REST OpenAPI 3.1 (`/api/v2`), спроектирован в WebLab #2 (`WebLab2.md`), реализован в WebLab #3 (`WebLab3.md`).
+- `internal/api/v2/`, `internal/delivery/server_v2.go` — реализация нового API; `cmd/cli` — CLI поверх HTTP-клиента.
 - `documentation/project.md`, `documentation/diagrams/` — материалы из ППО.
 
 ## Структура репозитория

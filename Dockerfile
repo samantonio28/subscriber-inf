@@ -6,7 +6,7 @@ RUN go mod download
 RUN mkdir -p /logs
 COPY . .
 
-# Generate OpenAPI server/types/client from doc.yaml (output is gitignored)
-RUN go generate ./...
+# Generate OpenAPI server/types/client from doc.yaml + openapi.yaml (output is gitignored)
+RUN go generate
 
 CMD ["go", "run", "cmd/main.go"]
