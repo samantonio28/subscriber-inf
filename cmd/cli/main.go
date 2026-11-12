@@ -23,7 +23,7 @@ func main() {
 
 	baseURL := os.Getenv("API_URL")
 	if baseURL == "" {
-		baseURL = "http://localhost:8080"
+		baseURL = "http://localhost:9090"
 	}
 	client, err := apiv2.NewClientWithResponses(baseURL)
 	if err != nil {
@@ -548,5 +548,5 @@ Commands:
   stats-overview
   help
 
-Set API_URL to point to the backend (default http://localhost:8080).`)
+Set API_URL to point to the backend (default http://localhost:9090).`)
 }

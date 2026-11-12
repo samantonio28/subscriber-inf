@@ -1,48 +1,81 @@
 services:
+  # Единая точка входа — web-сервер nginx. Все остальные сервисы внутренние.
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "9090:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/static:/srv/static:ro
+      - ./documentation/screenshots:/srv/img:ro
+      - ./deploy/bin:/srv/bin:ro
+      - ./openapi.yaml:/srv/swagger/openapi.yaml:ro
+      - ./WebLab1.md:/srv/documentation/WebLab1.md:ro
+      - ./deploy/.htpasswd:/etc/nginx/.htpasswd:ro
+    depends_on:
+      - backend
+      - swagger-ui
+      - adminer
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      REDIS_URL: "redis:6379"
+      DB_TYPE: "postgres"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_USER: "postgres"
+      DB_PASSWORD: "${POSTGRES_PASSWORD:-secret}"
+      DB_NAME: "dev"
+      PORT: "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   postgres:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: secret
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-secret}"
       POSTGRES_DB: dev
-    ports: 
-      - "8001:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d
-      - ./tmp:/tmp
+      - pg_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d dev"]
       interval: 5s
       timeout: 5s
       retries: 10
-    restart: always
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
-    restart: always
+    restart: unless-stopped
 
   swagger-ui:
     image: swaggerapi/swagger-ui
-    ports:
-      - "8085:8080"
     environment:
       SWAGGER_JSON: /openapi.yaml
     volumes:
-      - ./subscriber-inf/openapi.yaml:/openapi.yaml:ro
+      - ./openapi.yaml:/openapi.yaml:ro
+    restart: unless-stopped
+
+  adminer:
+    image: adminer
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
     restart: unless-stopped
 
 volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
+  pg_data:

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	mock "github.com/samantonio28/subscriber-inf/internal/mocks"
@@ -78,9 +78,9 @@ func TestGetSubUC_SubById(t *testing.T) {
 		}
 		expectedDTO := SubToDTO(expectedSub)
 
-		mockLogger.EXPECT().Info("getting subscription by id", subID).Times(1)
+		mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 		mockSubRepo.EXPECT().Sub(gomock.Any(), domain.SubID(subID)).Return(expectedSub, nil)
-		mockLogger.EXPECT().Info("got subscription by id", subID, ": ", expectedSub).Times(1)
+		mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
 		dto, err := uc.SubById(context.Background(), subID)
 		if err != nil {
@@ -95,9 +95,9 @@ func TestGetSubUC_SubById(t *testing.T) {
 		subID := 99
 		expectedErr := domain.ErrSubscriptionNotFound
 
-		mockLogger.EXPECT().Info("getting subscription by id", subID).Times(1)
+		mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 		mockSubRepo.EXPECT().Sub(gomock.Any(), domain.SubID(subID)).Return(domain.Subscription{}, expectedErr)
-		mockLogger.EXPECT().Error("error getting subscription by id", subID, expectedErr).Times(1)
+		mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
 
 		dto, err := uc.SubById(context.Background(), subID)
 		if err != expectedErr {

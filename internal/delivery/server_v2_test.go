@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/google/uuid"
+	apiv2 "github.com/samantonio28/subscriber-inf/internal/api/v2"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	"github.com/samantonio28/subscriber-inf/internal/logger"
 	mock "github.com/samantonio28/subscriber-inf/internal/mocks"
@@ -315,6 +316,6 @@ func TestCreateSubscriptionPlan_InvalidJSON(t *testing.T) {
 }
 
 // apiv2ListSubsParams — хелпер для построения параметров ListSubscriptions.
-func apiv2ListSubsParams(uid uuid.UUID) struct{ UserId interface{} } {
-	return struct{ UserId interface{} }{UserId: uid}
+func apiv2ListSubsParams(uid uuid.UUID) apiv2.ListSubscriptionsParams {
+	return apiv2.ListSubscriptionsParams{UserId: uid}
 }

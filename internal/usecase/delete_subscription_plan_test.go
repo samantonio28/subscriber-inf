@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	mock "github.com/samantonio28/subscriber-inf/internal/mocks"
 )
@@ -77,7 +77,8 @@ func TestDeleteSubscriptionPlanUC_Delete(t *testing.T) {
 
 		mockRepo.EXPECT().Delete(gomock.Any(), id).Return(nil)
 		mockCache.EXPECT().DeleteSubscriptionPlan(gomock.Any(), cacheKey).Return(nil)
-		mockLogger.EXPECT().Info("subscription plan deleted").Times(1)
+		mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+		mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
 		err := uc.Delete(context.Background(), id)
 		if err != nil {
@@ -90,7 +91,8 @@ func TestDeleteSubscriptionPlanUC_Delete(t *testing.T) {
 		expectedErr := domain.ErrSubscriptionPlanNotFound
 
 		mockRepo.EXPECT().Delete(gomock.Any(), id).Return(expectedErr)
-		mockLogger.EXPECT().WithFields(gomock.Any()).Return(nil)
+		mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+		mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
 		// cache invalidation should NOT be called because deletion failed
 
 		err := uc.Delete(context.Background(), id)

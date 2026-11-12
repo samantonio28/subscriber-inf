@@ -47,6 +47,10 @@ func (c *Client) Exists(ctx context.Context, key string) (bool, error) {
 	return result > 0, err
 }
 
+func (c *Client) Ping(ctx context.Context) error {
+	return c.client.Ping(ctx).Err()
+}
+
 func (c *Client) Close() error {
 	return c.client.Close()
 }

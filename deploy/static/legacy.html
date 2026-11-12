@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Legacy — консольная версия</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Legacy — консольная версия (ППО LR5)</h1>
+    <p class="subtitle">У исходного проекта не было MPA/SPA-интерфейса — рабочим интерфейсом был CLI (TUI). Здесь он доступен в виде сборки и работает через REST API.</p>
+
+    <h2>Скачать</h2>
+    <p><a href="/legacy/download" download>Скачать консольную версию (subscriber-cli, macOS arm64)</a> — готовый бинарник, работает через REST API.</p>
+
+    <h2>Сборка из исходников</h2>
+    <pre><code>cd cmd/cli
+go build -o subscriber-cli .
+./subscriber-cli --help</code></pre>
+
+    <p>CLI обращается к API по адресу из переменной окружения <code>API_URL</code> (по умолчанию <code>http://localhost:9090</code>):</p>
+    <pre><code>export API_URL=http://localhost:9090
+./subscriber-cli get-services
+./subscriber-cli get-plans
+./subscriber-cli create-user --email demo@ex.com --name Demo</code></pre>
+
+    <h2>Доступные команды</h2>
+    <p>users / services / plans / subscriptions / promocodes / analytics — порядка 20 команд чтения и записи.</p>
+
+    <p><a href="/management">← на /management</a></p>
+  </div>
+</body>
+</html>

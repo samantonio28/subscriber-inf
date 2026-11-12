@@ -119,16 +119,51 @@ func App() {
 	rWithMiddleware.Use(CORSMiddleware())
 	rWithMiddleware.Use(AuthMiddleware(userRepo))
 	rWithMiddleware.Use(AccessLogMiddleware(logger))
+
+	// /health — liveness: процесс жив (не проверяет зависимости).
+	rWithMiddleware.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}).Methods(http.MethodGet)
+
+	// /ready — readiness: готов обслуживать запросы (Postgres + Redis доступны).
+	rWithMiddleware.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
+		if err := pool.Ping(ctx); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"status":"not_ready","dependency":"postgres"}`))
+			return
+		}
+		if err := redisClient.Ping(ctx); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"status":"not_ready","dependency":"redis"}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ready"}`))
+	}).Methods(http.MethodGet)
+
 	rWithMiddleware.PathPrefix("/api/v2").Handler(rV2)
 	rWithMiddleware.PathPrefix("/api/v1").Handler(http.StripPrefix("/api/v1", r))
 	rWithMiddleware.PathPrefix("/").Handler(r)
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
 	server := http.Server{
-		Addr:         ":8080",
+		Addr:         ":" + port,
 		Handler:      rWithMiddleware,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-	fmt.Println("starting server at :8080")
+	fmt.Println("starting server at :" + port)
 	fmt.Println(fmt.Errorf("server ended with error: %v", server.ListenAndServe()))
 }

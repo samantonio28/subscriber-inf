@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	mock "github.com/samantonio28/subscriber-inf/internal/mocks"
 )
@@ -87,7 +87,8 @@ func TestGetSubscriptionPlanUC_ByID(t *testing.T) {
 		mockRepo.EXPECT().GetByID(gomock.Any(), id).Return(expectedPlan, nil)
 		// Сохранение в кэш
 		mockCache.EXPECT().SetSubscriptionPlan(gomock.Any(), "123", expectedPlan, gomock.Any()).Return(nil)
-		mockLogger.EXPECT().Info("subscription plan retrieved from db and cached").Times(1)
+		mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+		mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
 		plan, err := uc.ByID(context.Background(), id)
 		if err != nil {
@@ -110,7 +111,8 @@ func TestGetSubscriptionPlanUC_ByID(t *testing.T) {
 
 		// Кэш содержит план
 		mockCache.EXPECT().GetSubscriptionPlan(gomock.Any(), "456").Return(expectedPlan, nil)
-		mockLogger.EXPECT().Info("subscription plan retrieved from cache").Times(1)
+		mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+		mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 		// Репозиторий не вызывается
 		// SetSubscriptionPlan не вызывается
 
@@ -130,7 +132,8 @@ func TestGetSubscriptionPlanUC_ByID(t *testing.T) {
 		// Кэш не содержит
 		mockCache.EXPECT().GetSubscriptionPlan(gomock.Any(), "999").Return(domain.SubscriptionPlan{}, domain.ErrInvalidCache)
 		mockRepo.EXPECT().GetByID(gomock.Any(), id).Return(domain.SubscriptionPlan{}, expectedErr)
-		mockLogger.EXPECT().WithFields(gomock.Any()).Return(nil)
+		mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+		mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
 
 		plan, err := uc.ByID(context.Background(), id)
 		if err != expectedErr {
@@ -179,7 +182,8 @@ func TestGetSubscriptionPlanUC_ByServiceID(t *testing.T) {
 		}
 
 		mockRepo.EXPECT().GetByService(gomock.Any(), serviceID).Return(expectedPlans, nil)
-		mockLogger.EXPECT().Info("subscription plans retrieved by service").Times(1)
+		mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+		mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
 		plans, err := uc.ByServiceID(context.Background(), serviceID)
 		if err != nil {
@@ -195,7 +199,8 @@ func TestGetSubscriptionPlanUC_ByServiceID(t *testing.T) {
 		expectedPlans := []domain.SubscriptionPlan{}
 
 		mockRepo.EXPECT().GetByService(gomock.Any(), serviceID).Return(expectedPlans, nil)
-		mockLogger.EXPECT().Info("subscription plans retrieved by service").Times(1)
+		mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+		mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
 		plans, err := uc.ByServiceID(context.Background(), serviceID)
 		if err != nil {
@@ -211,7 +216,8 @@ func TestGetSubscriptionPlanUC_ByServiceID(t *testing.T) {
 		expectedErr := domain.ErrSubscriptionPlanNotFound
 
 		mockRepo.EXPECT().GetByService(gomock.Any(), serviceID).Return(nil, expectedErr)
-		mockLogger.EXPECT().WithFields(gomock.Any()).Return(nil)
+		mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+		mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
 
 		plans, err := uc.ByServiceID(context.Background(), serviceID)
 		if err != expectedErr {

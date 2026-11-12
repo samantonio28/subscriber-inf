@@ -28,3 +28,14 @@
 - **Принятое решение:** новый API на `/api/v2`, старый оставлен на `/api/v1` и `/` (для SPA); TUI переведён на HTTP-клиент (`pkg/clients/apiv2`).
 - **Исправленные баги (ревью):** `PUT /subscriptions` (пустой `service_name`), `PUT /promocodes` (пустой `expires_at`), `total-costs` (фильтр `service_name` отбрасывал всё).
 - **Уточнение:** конфиг БД сведён к одному `configs/database.yaml` (удалены `postgres.yaml` и осиротевшая структура `DatabaseConfig`).
+
+## WebLab #4 — WEB SERVER Junior
+
+- **Задача:** настроить асинхронный web-сервер (nginx) как единую точку входа: маршрутизация `/api/v1`/`/api/v2`, Swagger UI, статика, `/documentation`, `/legacy`, `/status`, `/management`, ограниченный `/admin`, `/health`/`/ready`, воспроизводимый запуск через Docker Compose.
+- **Инструмент/модель:** Claude Code + nginx (конфиг), Docker Compose, Adminer, curl (HTTP-проверки).
+- **Ссылки на результат:** `deploy/nginx.conf`, `deploy/static/*`, `deploy/http-check.sh`, `docker-compose.yml` (полный стенд), `.env.example`, `internal/delivery/app.go` (+`/health`,`/ready`,`PORT`), `WebLab4.md`.
+- **Проверки:** `make web-check` → 19/19 зелёных (маршруты, коды, статика, префиксы, `/health`/`/ready`, `/admin` 401/200).
+- **Принятое решение:** nginx как единая точка входа, всё остальное — внутреннее; Swagger UI за `/api/v2/docs` через контейнер `swagger-ui` + статическая спецификация (`/openapi.yaml`); `/admin` → Adminer с basic-auth.
+- **Исправленные ошибки (запуск/отладка):** (1) вложенный read-only mount `/srv/static/img` → отдельный `/srv/img`; (2) спецификация не отдавалась для Swagger UI → добавлен `location = /openapi.yaml`.
+- **Управляемость изменений:** внутренний порт бэкенда `8080 → 9090` (env `PORT` + `proxy_pass backend:9090`) при неизменных внешних URL — проверки остались зелёными; финал на `8080`.
+

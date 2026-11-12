@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Management — маршруты</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Management</h1>
+    <p class="subtitle">Сводка маршрутов WEB SERVER v1.0. Доступ к служебным страницам не обходит ограничения.</p>
+
+    <h2>Маршруты</h2>
+    <table>
+      <thead>
+        <tr><th>Путь</th><th>Назначение</th><th>Доступ</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><a href="/api/v2/">/api/v2</a></td><td>REST API v2</td><td>публичный</td></tr>
+        <tr><td><a href="/api/v1/">/api/v1</a></td><td>REST API v1</td><td>публичный</td></tr>
+        <tr><td><a href="/api/v2/docs/">/api/v2/docs</a></td><td>Swagger UI</td><td>публичный</td></tr>
+        <tr><td><a href="/documentation">/documentation</a></td><td>Требования WebLab&nbsp;#1</td><td>публичный</td></tr>
+        <tr><td><a href="/legacy">/legacy</a></td><td>Консольная версия (ППО LR5)</td><td>публичный</td></tr>
+        <tr><td><a href="/">/</a></td><td>Приветственная страница</td><td>публичный</td></tr>
+        <tr><td><a href="/reserved/">/reserved/</a></td><td>Та же страница, что и /</td><td>публичный</td></tr>
+        <tr><td><a href="/status">/status</a></td><td>Статус сервера</td><td>публичный</td></tr>
+        <tr><td><a href="/health">/health</a> · <a href="/ready">/ready</a></td><td>Liveness / readiness</td><td>публичный</td></tr>
+        <tr><td><a href="/admin/">/admin</a></td><td>Админка БД (Adminer)</td><td>basic-auth</td></tr>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

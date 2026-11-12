@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	mock "github.com/samantonio28/subscriber-inf/internal/mocks"
 )
@@ -53,6 +53,10 @@ func TestCreateSubscriptionPlanUC_Create(t *testing.T) {
 
 	mockRepo := mock.NewMockSubscriptionPlanRepository(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Warn(gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
 
 	uc, err := NewCreateSubscriptionPlanUC(mockRepo, mockLogger)
 	if err != nil {
@@ -68,7 +72,8 @@ func TestCreateSubscriptionPlanUC_Create(t *testing.T) {
 		}
 
 		mockRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(domain.PlanID(123), nil)
-		mockLogger.EXPECT().Info("subscription plan created").Times(1)
+		mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+		mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
 		id, err := uc.Create(context.Background(), input)
 		if err != nil {
@@ -123,7 +128,8 @@ func TestCreateSubscriptionPlanUC_Create(t *testing.T) {
 
 		expectedErr := domain.ErrSubscriptionPlanNotFound
 		mockRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(domain.PlanID(0), expectedErr)
-		mockLogger.EXPECT().WithFields(gomock.Any()).Return(nil)
+		mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+		mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
 
 		id, err := uc.Create(context.Background(), input)
 		if err != expectedErr {

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Статус сервера</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Статус сервера</h1>
+    <p class="subtitle">WebLab&nbsp;#4 — WEB SERVER v1.0 (nginx)</p>
+
+    <table>
+      <tbody>
+        <tr><th>Сервер</th><td>nginx</td></tr>
+        <tr><th>Приложение</th><td>subscriber-inf (Go, REST API v1/v2)</td></tr>
+        <tr><th>Точка входа</th><td><code>http://localhost:9090</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2>Проверки состояния</h2>
+    <table>
+      <tbody>
+        <tr><th>Liveness (/health)</th><td id="health">—</td></tr>
+        <tr><th>Readiness (/ready)</th><td id="ready">—</td></tr>
+      </tbody>
+    </table>
+    <p class="subtitle">/health — процесс жив; /ready — готов обслуживать (Postgres + Redis доступны).</p>
+
+    <p><a href="/management">← на /management</a></p>
+  </div>
+
+  <script>
+    function probe(path, elId, okText, errText) {
+      var el = document.getElementById(elId);
+      el.innerHTML = '<span class="badge err">…</span>';
+      fetch(path)
+        .then(function (r) {
+          var ok = r.ok;
+          el.innerHTML = ok
+            ? '<span class="badge ok">' + okText + ' (' + r.status + ')</span>'
+            : '<span class="badge err">' + errText + ' (' + r.status + ')</span>';
+        })
+        .catch(function () {
+          el.innerHTML = '<span class="badge err">недоступен</span>';
+        });
+    }
+    probe('/health', 'health', 'OK', 'не здоров');
+    probe('/ready', 'ready', 'ready', 'not ready');
+  </script>
+</body>
+</html>

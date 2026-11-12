@@ -24,8 +24,8 @@ lint-api:
 mock-api:
 	npx -y @stoplight/prism-cli mock openapi.yaml --port 4010
 
-# ===== Демонстрация API (реальный бэкенд :8080) =====
-API_URL = http://localhost:8080
+# ===== Демонстрация API (реальный бэкенд :9090) =====
+API_URL = http://localhost:9090
 
 demo: demo-1 demo-2 demo-3 demo-4 demo-5
 
@@ -50,7 +50,7 @@ demo-5:
 	@curl -s -w '\n[HTTP %{http_code}]\n' -X POST $(API_URL)/api/v2/users -H 'Content-Type: application/json' -d '{"password":"secret","user_name":"Demo","age":25,"balance":10000}'
 
 
-# ===== API-тесты (curl, реальный бэкенд :8080) =====
+# ===== API-тесты (curl, реальный бэкенд :9090) =====
 api-test: test-1 test-2 test-3 test-4 test-5 test-6 test-7 test-8 test-9 test-10 test-11 test-12 test-13 test-14 test-15
 
 test-1:
@@ -112,3 +112,13 @@ test-14:
 test-15:
 	@echo "15. GET /api/v1/subscription-plans (старый API v1)"
 	@curl -s -o /dev/null -w '   -> HTTP %{http_code}\n' $(API_URL)/api/v1/subscription-plans
+
+
+# ===== HTTP-проверки стенда WebLab #4 (nginx — единая точка входа :9090) =====
+web-check:
+	@bash deploy/http-check.sh
+
+# ===== Сборка консольной версии CLI (для /legacy/download) =====
+build-cli:
+	@mkdir -p deploy/bin
+	@go build -ldflags "-s -w" -o deploy/bin/subscriber-cli ./cmd/cli

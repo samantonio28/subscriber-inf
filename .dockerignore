@@ -1,0 +1,25 @@
+# Сборка образа бэкенда: исключаем всё, что не нужно для go generate / go build.
+.git
+.gitignore
+.dockerignore
+.env
+.env.example
+*.md
+*.drawio
+*.graphml
+*.puml
+*.mmd
+*.png
+*.jpg
+*.svg
+*.pdf
+*.log
+C4.drawio
+er_diagram*
+documentation
+deploy
+grafana
+deepseek
+logs
+tmp
+generated

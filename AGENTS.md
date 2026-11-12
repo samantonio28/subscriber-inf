@@ -48,15 +48,23 @@ subscriber-inf/               # бэкенд (Go)
   migrations/                 # SQL-миграции Postgres
   migrations_mysql/           # MySQL-схема (экспериментально)
   configs/                    # конфиги (database.yaml — postgres)
+  deploy/                     # WebLab #4: nginx.conf, static/, http-check.sh
   documentation/              # документация, диаграммы, скриншоты
   WebLab1.md                  # итоговый документ WebLab #1
+  WebLab4.md                  # итоговый документ WebLab #4 (стенд, маршруты)
 subscriber-inf-frontend/      # Vue 3 SPA (отдельный репозиторий)
 ```
 
 ## Команды запуска и проверки
 
 ```bash
-# Полный стек (из папки web/): backend 8080, frontend 3000, postgres 8001, redis 6380
+# Стенд WebLab #4 (nginx — единая точка входа :9090; backend/postgres/redis/swagger/adminer внутренние)
+cd ~/study/web/subscriber-inf && docker compose up -d --build
+
+# HTTP-проверки стенда WebLab #4 (19 проверок: маршруты, коды, статика, /admin)
+cd ~/study/web/subscriber-inf && make web-check
+
+# Полный стек dev (из папки web/): backend 8080, frontend 3000, postgres 8001, redis 6380
 cd ~/study/web && docker compose up -d --build
 
 # Наполнение БД тестовыми данными

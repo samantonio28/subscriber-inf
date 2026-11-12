@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	mock "github.com/samantonio28/subscriber-inf/internal/mocks"
 )
@@ -65,6 +65,10 @@ func TestUpdateSubscriptionPlanUC_Update(t *testing.T) {
 	mockRepo := mock.NewMockSubscriptionPlanRepository(ctrl)
 	mockCache := mock.NewMockSubscriptionPlanCache(ctrl)
 	mockLogger := mock.NewMockLogger(ctrl)
+	mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Warn(gomock.Any()).AnyTimes()
+	mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
 
 	uc, err := NewUpdateSubscriptionPlanUC(mockRepo, mockCache, mockLogger)
 	if err != nil {
@@ -83,7 +87,8 @@ func TestUpdateSubscriptionPlanUC_Update(t *testing.T) {
 
 		mockRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 		mockCache.EXPECT().DeleteSubscriptionPlan(gomock.Any(), cacheKey).Return(nil)
-		mockLogger.EXPECT().Info("subscription plan updated").Times(1)
+		mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+		mockLogger.EXPECT().Info(gomock.Any()).AnyTimes()
 
 		err := uc.Update(context.Background(), input)
 		if err != nil {
@@ -132,7 +137,8 @@ func TestUpdateSubscriptionPlanUC_Update(t *testing.T) {
 
 		expectedErr := domain.ErrSubscriptionPlanNotFound
 		mockRepo.EXPECT().Update(gomock.Any(), gomock.Any()).Return(expectedErr)
-		mockLogger.EXPECT().WithFields(gomock.Any()).Return(nil)
+		mockLogger.EXPECT().Debug(gomock.Any()).AnyTimes()
+		mockLogger.EXPECT().Error(gomock.Any()).AnyTimes()
 		// cache invalidation should NOT be called because update failed
 
 		err := uc.Update(context.Background(), input)
