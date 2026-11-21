@@ -57,6 +57,21 @@ func (mr *MockUserRepositoryMockRecorder) GetUser(ctx, userID any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUser", reflect.TypeOf((*MockUserRepository)(nil).GetUser), ctx, userID)
 }
 
+// GetUserByEmail mocks base method.
+func (m *MockUserRepository) GetUserByEmail(ctx context.Context, email string) (domain.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserByEmail", ctx, email)
+	ret0, _ := ret[0].(domain.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserByEmail indicates an expected call of GetUserByEmail.
+func (mr *MockUserRepositoryMockRecorder) GetUserByEmail(ctx, email any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByEmail", reflect.TypeOf((*MockUserRepository)(nil).GetUserByEmail), ctx, email)
+}
+
 // GetUserByReferralCode mocks base method.
 func (m *MockUserRepository) GetUserByReferralCode(ctx context.Context, referralCode string) (domain.User, error) {
 	m.ctrl.T.Helper()

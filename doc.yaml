@@ -1100,6 +1100,239 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
 
+  # ==========================================================================
+  # Аутентификация (ЛР №5): регистрация, вход с 2FA по email-коду,
+  # смена пароля, восстановление после блокировки.
+  # ==========================================================================
+
+  /auth/register:
+    post:
+      tags:
+      - auth
+      summary: Register a new user (2nd factor — email)
+      description: Создаёт технического пользователя для BDD-сценариев. Пароль сохраняется только в виде bcrypt-хэша.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '409':
+          description: Email already taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /auth/login:
+    post:
+      tags:
+      - auth
+      summary: Login with email and password (first factor)
+      description: Проверяет пароль, после успешной проверки отправляет одноразовый код подтверждения на email (второй фактор).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: First factor OK, confirmation code sent to email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '423':
+          description: Account locked after too many failed attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /auth/verify:
+    post:
+      tags:
+      - auth
+      summary: Verify 2FA email code (second factor)
+      description: Подтверждает вход одноразовым кодом из email. После подтверждения пользователь считается аутентифицированным (X-User-ID).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyRequest'
+        required: true
+      responses:
+        '200':
+          description: Second factor confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStatusResponse'
+        '401':
+          description: Invalid or expired code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '423':
+          description: Account locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /auth/password:
+    put:
+      tags:
+      - auth
+      summary: Change password (planned password change)
+      description: Плановая смена пароля. Требуется заголовок X-User-ID, совпадающий с user_id, и знание текущего пароля.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+        required: true
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStatusResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '401':
+          description: Not authenticated or wrong current password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /auth/recover:
+    post:
+      tags:
+      - auth
+      summary: Request account recovery code
+      description: Заблокированный пользователь запрашивает код восстановления, который отправляется на email.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoverRequest'
+        required: true
+      responses:
+        '200':
+          description: Recovery code sent to email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStatusResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /auth/recover/confirm:
+    post:
+      tags:
+      - auth
+      summary: Confirm recovery and set new password
+      description: Подтверждение восстановления кодом из email — снимает блокировку, сбрасывает счётчик попыток и задаёт новый пароль.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoverConfirmRequest'
+        required: true
+      responses:
+        '200':
+          description: Account unlocked, new password set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStatusResponse'
+        '401':
+          description: Invalid or expired recovery code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
 components:
   schemas:
     ApiResponse:
@@ -1390,3 +1623,117 @@ components:
       - plan_id
       - price
       - duration_days
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: "tech.user@example.com"
+        user_name:
+          type: string
+          example: "Tech User"
+        age:
+          type: integer
+          minimum: 0
+          example: 30
+        balance:
+          type: integer
+          minimum: 0
+          example: 1000
+        referral_code:
+          type: string
+        login_secret:
+          type: string
+          minLength: 6
+          description: Пароль в открытом виде (только по TLS; хранится как bcrypt-хэш)
+      required:
+      - email
+      - user_name
+      - age
+      - login_secret
+    RegisterResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: "tech.user@example.com"
+        login_secret:
+          type: string
+      required:
+      - email
+      - login_secret
+    LoginResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          example: "code_sent"
+    VerifyRequest:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          example: "123456"
+      required:
+      - user_id
+      - code
+    ChangePasswordRequest:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        current_login_secret:
+          type: string
+        new_login_secret:
+          type: string
+          minLength: 6
+      required:
+      - user_id
+      - current_login_secret
+      - new_login_secret
+    RecoverRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+      - email
+    RecoverConfirmRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        code:
+          type: string
+          example: "654321"
+        new_login_secret:
+          type: string
+          minLength: 6
+      required:
+      - email
+      - code
+      - new_login_secret
+    AuthStatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"

@@ -10,3 +10,7 @@ gitlab_repo
 allure-results*
 *.out
 coverage.xml
+
+# ЛР №5: секреты e2e (пароль техпользователя) и артефакты BDD-прогонов
+.env.e2e
+test/e2e/bdd/cucumber.json

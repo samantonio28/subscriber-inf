@@ -1,8 +1,9 @@
 # GitHub Actions CI/CD для лабораторной работы №2.
 #
 # Пайплайн собирает ТРИ docker-образа (сервис, PostgreSQL, тестовый контейнер) и
-# прогоняет тесты в порядке unit → integration → e2e, где E2E гоняется против
-# реально развёрнутого сервиса + PostgreSQL.
+# прогоняет тесты в порядке unit → integration → e2e → e2e-bdd, где E2E гоняется
+# против реально развёрнутого сервиса + PostgreSQL. ЛР №5 добавляет ступень
+# e2e-bdd: BDD-сценарии аутентификации (godog/Gherkin) с секретом из GitHub Actions.
 #
 # Порядок обеспечивается `needs`: если этап упал, следующие не запускаются
 # (помечаются skipped). Отчёт генерируется всегда (if: always()).
@@ -236,8 +237,8 @@ jobs:
         env:
           ALLURE_OUTPUT_FOLDER: ${{ github.workspace }}/allure-results
         run: |
-          echo "==> e2e: go test -v -p 1 -tags e2e ./test/e2e/..."
-          go test -p 1 -tags e2e -v ./test/e2e/...
+          echo "==> e2e: go test -v -p 1 -tags e2e ./test/e2e (BDD-сценарии гоняются в ступени e2e-bdd)"
+          go test -p 1 -tags e2e -v ./test/e2e
       - name: "Публикация результатов (allure)"
         if: always()
         uses: actions/upload-artifact@v4
@@ -247,12 +248,94 @@ jobs:
           if-no-files-found: ignore
 
   # ============================================================================
-  # 3. Отчёт (генерируется всегда)
+  # 3. E2E BDD (godog): аутентификация/2FA/блокировка/восстановление (ЛР №5)
+  # ============================================================================
+
+  e2e-bdd:
+    name: "Этап 4/4 — E2E BDD (godog): 2FA, лимит попыток, восстановление"
+    needs: [integration, build-service, build-postgres]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository }}/test:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    services:
+      postgres:
+        image: ghcr.io/${{ github.repository }}/postgres:latest
+        env:
+          POSTGRES_DB: test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+      app:
+        image: ghcr.io/${{ github.repository }}/service:latest
+        env:
+          CONFIG_PATH: configs/postgres_ci.yaml
+          REDIS_URL: redis:6379
+    env:
+      # BDD-тесты бьют по развёрнутому сервису.
+      BASE_URL: http://app:8080
+      # Требование ЛР №5 (п.5a): пароль технического пользователя НЕ хранится
+      # в репозитории — приходит из GitHub Actions secret.
+      E2E_TECH_USER_PASSWORD: ${{ secrets.E2E_TECH_USER_PASSWORD }}
+      TEST_REDIS_ADDR: redis:6379
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Ожидание схемы БД и готовности сервиса"
+        run: |
+          for i in $(seq 1 30); do
+            if PGPASSWORD="$POSTGRES_PASSWORD" psql -h postgres -U postgres -d test -tAc "SELECT 1 FROM users LIMIT 1" >/dev/null 2>&1; then
+              echo "==> схема БД готова"; break
+            fi
+            echo "==> жду миграции..."; sleep 2
+          done
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://app:8080/subscriptions?uuid=00000000-0000-0000-0000-000000000000 || true)
+            if [ "$code" != "000" ]; then echo "==> сервис готов (HTTP $code)"; break; fi
+            echo "==> жду сервис..."; sleep 2
+          done
+      - name: "Проверка наличия секрета E2E_TECH_USER_PASSWORD"
+        run: |
+          if [ -z "$E2E_TECH_USER_PASSWORD" ]; then
+            echo "::error::Секрет E2E_TECH_USER_PASSWORD не задан. Добавьте его: Settings → Secrets and variables → Actions → New repository secret."
+            exit 1
+          fi
+      - name: "Запуск BDD e2e-тестов (godog, сценарии Gherkin)"
+        env:
+          CUCUMBER_JSON_PATH: ${{ github.workspace }}/cucumber.json
+        run: |
+          echo "==> e2e-bdd: go test -p 1 -tags e2e ./test/e2e/bdd/..."
+          go test -p 1 -tags e2e -v ./test/e2e/bdd/...
+      - name: "Конвертация Cucumber JSON в allure-results"
+        if: always()
+        run: |
+          go run ./tools/cucumber2allure -in "${{ github.workspace }}/cucumber.json" -out allure-results
+      - name: "Публикация результатов (allure)"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-bdd-results
+          path: allure-results/
+          if-no-files-found: ignore
+
+  # ============================================================================
+  # 4. Отчёт (генерируется всегда)
   # ============================================================================
 
   report:
     name: "Отчёт Allure (с историей для трендов)"
-    needs: [unit, integration, e2e, build-test]
+    needs: [unit, integration, e2e, e2e-bdd, build-test]
     if: always()
     runs-on: ubuntu-latest
     container:
@@ -272,6 +355,7 @@ jobs:
           cp -r results/unit-results/allure-results/* allure-results/ 2>/dev/null || true
           cp -r results/integration-results/allure-results/* allure-results/ 2>/dev/null || true
           cp -r results/e2e-results/allure-results/* allure-results/ 2>/dev/null || true
+          cp -r results/e2e-bdd-results/allure-results/* allure-results/ 2>/dev/null || true
           # Подкинуть прошлую историю (из ветки gh-pages) в результаты — allure её дополнит.
           mkdir -p allure-results/history
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/gh-pages/history/history.json" -o allure-results/history/history.json || true

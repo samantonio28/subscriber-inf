@@ -76,6 +76,7 @@ func generateReferralCode() *string {
 type UserRepository interface {
 	StoreUser(ctx context.Context, user User) error
 	GetUser(ctx context.Context, userID uuid.UUID) (User, error)
+	GetUserByEmail(ctx context.Context, email string) (User, error)
 	UpdateUser(ctx context.Context, user User) error
 	GetUserByReferralCode(ctx context.Context, referralCode string) (User, error)
 	StoreReferral(ctx context.Context, referrerID, referredID uuid.UUID) error

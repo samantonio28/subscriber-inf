@@ -58,6 +58,11 @@ VALUES ($1, $2);
 	setAppCurrentUserIDQuery = `
 SELECT set_config('app.current_user_id', $1, false);
 `
+	getUserByEmailQuery = `
+SELECT user_id, email, password, user_name, age, balance, referral_code, role
+FROM users
+WHERE email = $1;
+`
 )
 
 func (r *UserRepo) StoreUser(ctx context.Context, user domain.User) error {
@@ -102,6 +107,33 @@ func (r *UserRepo) GetUser(ctx context.Context, userID uuid.UUID) (domain.User, 
 	// CreatedAt and UpdatedAt are not stored, set to zero values
 	user.CreatedAt = time.Time{}
 	user.UpdatedAt = time.Time{}
+	return user, nil
+}
+
+// GetUserByEmail ищет пользователя по email (для аутентификации: вход,
+// восстановление доступа). Возвращает domain.ErrUserNotFound, если пользователя нет.
+func (r *UserRepo) GetUserByEmail(ctx context.Context, email string) (domain.User, error) {
+	var user domain.User
+	var referralCode *string
+	var role string
+	err := r.p.QueryRow(ctx, getUserByEmailQuery, email).Scan(
+		&user.UserID,
+		&user.Email,
+		&user.Password,
+		&user.UserName,
+		&user.Age,
+		&user.Balance,
+		&referralCode,
+		&role,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.User{}, domain.ErrUserNotFound
+		}
+		return domain.User{}, fmt.Errorf("failed to get user by email: %w", err)
+	}
+	user.ReferralCode = referralCode
+	user.Role = domain.Role(role)
 	return user, nil
 }
 

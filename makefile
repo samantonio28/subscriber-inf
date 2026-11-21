@@ -57,7 +57,7 @@ integration:
 e2e:
 	go clean -testcache
 	@echo "Запуск E2E-теста (требуется тестовый стенд: make test-up)"
-	go test -p 1 -tags e2e ./test/e2e/...
+	go test -p 1 -tags e2e ./test/e2e
 	@echo "E2E-тест завершён"
 
 # --- Тестовый стенд (ЛР №2): отдельные инстансы PostgreSQL и Redis ---
@@ -116,3 +116,61 @@ sonar-scan:
 sonar: sonar-up sonar-scan
 	open $(SONAR_URL)/dashboard?id=subscriber-inf
 	@echo "Дашборд открыт в браузере: $(SONAR_URL)/dashboard?id=subscriber-inf"
+
+# ============================================================================
+# ЛР №5: аутентификация + BDD e2e (godog)
+# ============================================================================
+
+# Юнит-тесты auth-юзкейсов (моки, БД не нужна).
+auth-unit:
+	go clean -testcache
+	@echo "Запуск юнит-тестов auth-юзкейсов (ЛР №5)"
+	go test -count=1 -v ./internal/usecase/ -run 'TestHashAndCheckSecret|TestRegisterAuthUC|TestLoginUC|TestVerifyAuthCodeUC|TestChangePasswordUC|TestRecoverAuthUC'
+	@echo "Юнит-тесты auth завершены"
+
+# Секреты e2e подхватываются из .env.e2e (в .gitignore, см. .env.e2e.example).
+# В CI значение приходит из GitHub secret E2E_TECH_USER_PASSWORD.
+-include .env.e2e
+export E2E_TECH_USER_PASSWORD
+
+E2E_SERVICE_BIN = /tmp/subscriber-inf-e2e-bin
+E2E_SERVICE_PID  = /tmp/subscriber-inf-e2e.pid
+E2E_SERVICE_LOG  = /tmp/subscriber-inf-e2e.log
+
+# Локальный запуск сервиса против тестового стенда (postgres_test:8002, redis_test:6380).
+service-up:
+	@if [ -f $(E2E_SERVICE_PID) ] && kill -0 $$(cat $(E2E_SERVICE_PID)) 2>/dev/null; then \
+		echo "Сервис уже запущен (PID $$(cat $(E2E_SERVICE_PID)))"; \
+	else \
+		go build -o $(E2E_SERVICE_BIN) ./cmd/; \
+		CONFIG_PATH=configs/postgres_test.yaml REDIS_URL=localhost:6380 $(E2E_SERVICE_BIN) > $(E2E_SERVICE_LOG) 2>&1 & \
+		echo $$! > $(E2E_SERVICE_PID); \
+	fi
+	@for i in $$(seq 1 30); do \
+		code=$$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/subscriptions?uuid=00000000-0000-0000-0000-000000000000" || true); \
+		if [ "$$code" != "000" ]; then echo "Сервис готов (HTTP $$code)"; exit 0; fi; \
+		sleep 1; \
+	done; \
+	echo "Сервис не поднялся, см. $(E2E_SERVICE_LOG)"; exit 1
+
+service-down:
+	@if [ -f $(E2E_SERVICE_PID) ]; then \
+		kill $$(cat $(E2E_SERVICE_PID)) 2>/dev/null || true; rm -f $(E2E_SERVICE_PID); \
+		echo "Сервис остановлен"; \
+	else echo "Сервис не был запущен"; fi
+
+# BDD e2e-тесты (godog): техстенд + локальный сервис → прогон сценариев →
+# конвертация Cucumber JSON в allure-results.
+# Требование ЛР №5: пароль берётся из .env.e2e (НЕ хранится в репозитории).
+e2e-bdd: test-up service-up
+	@: $${E2E_TECH_USER_PASSWORD:?секрет E2E_TECH_USER_PASSWORD не задан: скопируйте .env.e2e.example в .env.e2e и укажите свой пароль}
+	go clean -testcache
+	@echo "Запуск BDD e2e-тестов (godog) против http://localhost:8080"
+	go test -p 1 -tags e2e ./test/e2e/bdd/...
+	go run ./tools/cucumber2allure -in test/e2e/bdd/cucumber.json -out allure-results
+	@echo "BDD e2e завершён. Отчёт: make allure-serve (результаты в allure-results/)"
+
+# Прогон BDD + открыть Allure-отчёт в браузере.
+bdd-report: e2e-bdd
+	allure generate allure-results -o reports/allure-bdd --clean
+	open reports/allure-bdd/index.html

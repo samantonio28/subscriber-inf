@@ -66,7 +66,7 @@ func BuildHandler(pool *pgxpool.Pool, redisClient *redis.Client, lg *logger.Logr
 		return nil, err
 	}
 
-	serverImpl, err := NewSubsServer(repo, promoRepo, planRepo, planCache, promoCache, statsService, userRepo, paymentRepo, userServiceRepo, lg)
+	serverImpl, err := NewSubsServer(repo, promoRepo, planRepo, planCache, promoCache, statsService, userRepo, paymentRepo, userServiceRepo, redisClient, lg)
 	if err != nil {
 		return nil, err
 	}

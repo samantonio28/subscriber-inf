@@ -14,6 +14,8 @@ import (
 	"github.com/samantonio28/subscriber-inf/internal/api"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
 	"github.com/samantonio28/subscriber-inf/internal/logger"
+	"github.com/samantonio28/subscriber-inf/internal/redis"
+	"github.com/samantonio28/subscriber-inf/internal/service"
 	"github.com/samantonio28/subscriber-inf/internal/usecase"
 	"github.com/samantonio28/subscriber-inf/pkg/utils"
 )
@@ -89,7 +91,13 @@ type SubsServer struct {
 	DeleteServiceFromFavoritesUC usecase.DeleteServiceFromFavoritesUC
 	ListUserFavoritesUC          usecase.ListUserFavoritesUC
 	ListFavoritesByServiceUC     usecase.ListFavoritesByServiceUC
-	logger                       *logger.LogrusLogger
+	// Auth usecases (ЛР №5): 2FA по email, лимит попыток, блокировка/восстановление
+	RegisterAuthUC   usecase.RegisterAuthUC
+	LoginUC          usecase.LoginUC
+	VerifyAuthCodeUC usecase.VerifyAuthCodeUC
+	ChangePasswordUC usecase.ChangePasswordUC
+	RecoverAuthUC    usecase.RecoverAuthUC
+	logger           *logger.LogrusLogger
 }
 
 func NewSubsServer(
@@ -102,6 +110,7 @@ func NewSubsServer(
 	userRepo domain.UserRepository,
 	paymentRepo domain.PaymentRepository,
 	userServiceRepo domain.UserServiceRepository,
+	redisClient *redis.Client,
 	logger *logger.LogrusLogger,
 ) (*SubsServer, error) {
 	createSubUC, err := usecase.NewCreateSubUC(repo, logger)
@@ -214,6 +223,33 @@ func NewSubsServer(
 		return nil, fmt.Errorf("failed to create ListFavoritesByServiceUC: %w", err)
 	}
 
+	// Auth usecases (ЛР №5): состояние (коды, блокировки) — в Redis,
+	// письма с одноразовыми кодами — через Mailer (outbox в Redis).
+	mailer, err := service.NewOutboxMailer(redisClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OutboxMailer: %w", err)
+	}
+	registerAuthUC, err := usecase.NewRegisterAuthUC(userRepo, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create RegisterAuthUC: %w", err)
+	}
+	loginUC, err := usecase.NewLoginUC(userRepo, redisClient, mailer, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create LoginUC: %w", err)
+	}
+	verifyAuthCodeUC, err := usecase.NewVerifyAuthCodeUC(redisClient, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create VerifyAuthCodeUC: %w", err)
+	}
+	changePasswordUC, err := usecase.NewChangePasswordUC(userRepo, redisClient, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ChangePasswordUC: %w", err)
+	}
+	recoverAuthUC, err := usecase.NewRecoverAuthUC(userRepo, redisClient, mailer, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create RecoverAuthUC: %w", err)
+	}
+
 	return &SubsServer{
 		CreateSubUC:  *createSubUC,
 		DeleteSubUC:  *deleteSubUC,
@@ -246,7 +282,13 @@ func NewSubsServer(
 		DeleteServiceFromFavoritesUC: *deleteServiceFromFavoritesUC,
 		ListUserFavoritesUC:          *listUserFavoritesUC,
 		ListFavoritesByServiceUC:     *listFavoritesByServiceUC,
-		logger:                       logger,
+		// Auth
+		RegisterAuthUC:   *registerAuthUC,
+		LoginUC:          *loginUC,
+		VerifyAuthCodeUC: *verifyAuthCodeUC,
+		ChangePasswordUC: *changePasswordUC,
+		RecoverAuthUC:    *recoverAuthUC,
+		logger:           logger,
 	}, nil
 }
 
