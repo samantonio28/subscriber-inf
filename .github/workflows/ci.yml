@@ -292,6 +292,8 @@ jobs:
       TEST_REDIS_ADDR: redis:6379
     steps:
       - uses: actions/checkout@v4
+      - name: "Генерация OpenAPI-кода (internal/api в .gitignore)"
+        run: go generate
       - name: "Ожидание схемы БД и готовности сервиса"
         run: |
           for i in $(seq 1 30); do
