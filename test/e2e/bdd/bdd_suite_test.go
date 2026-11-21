@@ -27,6 +27,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -524,6 +525,12 @@ func TestMain(m *testing.M) {
 	cucumberPath := os.Getenv("CUCUMBER_JSON_PATH")
 	if cucumberPath == "" {
 		cucumberPath = "cucumber.json"
+	}
+	if dir := filepath.Dir(cucumberPath); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			fmt.Printf("cannot mkdir %s: %v\n", dir, err)
+			os.Exit(1)
+		}
 	}
 	f, err := os.Create(cucumberPath)
 	if err != nil {

@@ -314,15 +314,17 @@ jobs:
             exit 1
           fi
       - name: "Запуск BDD e2e-тестов (godog, сценарии Gherkin)"
-        env:
-          CUCUMBER_JSON_PATH: ${{ github.workspace }}/cucumber.json
         run: |
           echo "==> e2e-bdd: go test -p 1 -tags e2e ./test/e2e/bdd/..."
+          # godog пишет cucumber.json в каталог пакета (test/e2e/bdd/cucumber.json) —
+          # относительный путь: в container-джобах ${{ github.workspace }} даёт путь
+          # хоста (/home/runner/work/...), которого внутри контейнера не существует.
           go test -p 1 -tags e2e -v ./test/e2e/bdd/...
       - name: "Конвертация Cucumber JSON в allure-results"
         if: always()
         run: |
-          go run ./tools/cucumber2allure -in "${{ github.workspace }}/cucumber.json" -out allure-results
+          ls -la test/e2e/bdd/
+          go run ./tools/cucumber2allure -in "test/e2e/bdd/cucumber.json" -out allure-results
       - name: "Публикация результатов (allure)"
         if: always()
         uses: actions/upload-artifact@v4
