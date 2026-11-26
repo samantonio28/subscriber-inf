@@ -14,6 +14,8 @@ func applyEnvOverrides(c *Config) {
 	user := os.Getenv("DB_USER")
 	pass := os.Getenv("DB_PASSWORD")
 	name := os.Getenv("DB_NAME")
+	maxConns := os.Getenv("POOL_MAX_CONNS")
+	minConns := os.Getenv("POOL_MIN_CONNS")
 
 	if host != "" {
 		c.Postgres.Host = host
@@ -31,5 +33,15 @@ func applyEnvOverrides(c *Config) {
 	}
 	if name != "" {
 		c.Postgres.DBName = name
+	}
+	if maxConns != "" {
+		if n, err := strconv.Atoi(maxConns); err == nil {
+			c.Postgres.Pool.MaxConns = n
+		}
+	}
+	if minConns != "" {
+		if n, err := strconv.Atoi(minConns); err == nil {
+			c.Postgres.Pool.MinConns = n
+		}
 	}
 }

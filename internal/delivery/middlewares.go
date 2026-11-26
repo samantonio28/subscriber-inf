@@ -54,6 +54,25 @@ func CORSMiddleware() mux.MiddlewareFunc {
 	}
 }
 
+// ReadOnlyMiddleware блокирует изменяющие состояние запросы (POST/PUT/PATCH/DELETE)
+// на экземплярах бэкенда, развёрнутых только для чтения. Это вторая линия защиты:
+// первая — nginx маршрутизирует запись только на экземпляр с правами на запись,
+// поэтому сюда запись в норме не доходит. Если она всё же попала — возвращаем 403.
+func ReadOnlyMiddleware() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet, http.MethodHead, http.MethodOptions:
+				next.ServeHTTP(w, r)
+			default:
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"message":"read-only instance: write operations are not allowed"}`))
+			}
+		})
+	}
+}
+
 // AuthMiddleware извлекает X-User-ID заголовок, находит пользователя в БД и сохраняет его ID и роль в контекст.
 // Также устанавливает параметр app.current_user_id в сеансе БД для работы политик RLS.
 func AuthMiddleware(userRepo domain.UserRepository) mux.MiddlewareFunc {

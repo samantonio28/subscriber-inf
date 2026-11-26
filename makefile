@@ -122,3 +122,13 @@ web-check:
 build-cli:
 	@mkdir -p deploy/bin
 	@go build -ldflags "-s -w" -o deploy/bin/subscriber-cli ./cmd/cli
+
+# ===== Нагрузочный тест (k6) WebLab #5 =====
+# k6 запускается внутри compose-сети и бьёт по nginx:80 (внутренний порт).
+# Перед прогоном стенд должен быть поднят: docker compose up -d --build.
+load-test:
+	@docker run --rm \
+		--network subscriber-inf_default \
+		-v "$(CURDIR)/deploy/k6:/scripts:ro" \
+		-e BASE_URL=http://nginx:80 \
+		grafana/k6:0.55.0 run /scripts/load.js

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Subscriber Inf — mirror</title>
+  <link rel="stylesheet" href="/mirror/static/style.css">
+</head>
+<body>
+  <main>
+    <h1>Subscriber Inf <span class="badge">mirror</span></h1>
+    <p>Это <strong>отдельно развёрнутая версия</strong> приложения (WebLab #5, п.3).</p>
+    <p>
+      Чтение обслуживается пулом <code>2:1:1</code> (экземпляр на запись +
+      экземпляр за репликой БД <code>postgres-replica</code>). Запись уходит на
+      узел с правами на запись (<code>postgres</code> primary).
+    </p>
+
+    <h2>Маршруты mirror</h2>
+    <ul>
+      <li><a href="/mirror/api/v2/subscription-plans">/mirror/api/v2/subscription-plans</a> — чтение (реплика)</li>
+      <li><a href="/mirror/api/v2/docs/">/mirror/api/v2/docs/</a> — Swagger UI</li>
+      <li><a href="/mirror/health">/mirror/health</a> / <a href="/mirror/ready">/mirror/ready</a> — проверки</li>
+      <li><a href="/">← основная версия</a></li>
+    </ul>
+  </main>
+</body>
+</html>

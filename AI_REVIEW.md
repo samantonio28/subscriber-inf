@@ -39,3 +39,13 @@
 - **Исправленные ошибки (запуск/отладка):** (1) вложенный read-only mount `/srv/static/img` → отдельный `/srv/img`; (2) спецификация не отдавалась для Swagger UI → добавлен `location = /openapi.yaml`.
 - **Управляемость изменений:** внутренний порт бэкенда `8080 → 9090` (env `PORT` + `proxy_pass backend:9090`) при неизменных внешних URL — проверки остались зелёными; финал на `8080`.
 
+## WebLab #5 — WEB SERVER Senior DevOps
+
+- **Задача:** расширить стенд до v2.0: балансировка чтения 2:1:1, запись на один узел, read-only роли БД, `/mirror` за standby-репликой, кэш+gzip, подмена `Server`, `/monitoring` (Prometheus+Loki+Grafana), нагрузка k6, сценарий отказа.
+- **Инструмент/модель:** Claude Code + openresty (nginx+headers-more) + PostgreSQL streaming replication + k6 + Prometheus/Loki/Promtail/Grafana.
+- **Ссылки на результат:** `deploy/nginx.conf`, `deploy/http-check.sh` (40 проверок), `deploy/k6/load.js`, `deploy/prometheus|promtail|loki|grafana/*`, `deploy/postgres-replica/entrypoint.sh`, `migrations/000_replication_hba.sh`, `migrations/014_readonly_role.up.sql`, `internal/delivery/metrics.go` + `middlewares.go` + `app.go`, `internal/logger/logger.go`, `Dockerfile` (бинарник), `pkg/config/env.go` (`POOL_MAX_CONNS`), `WebLab5.md`.
+- **Проверки:** `make web-check` 40/40; 200 GET → `100/50/50` (2:1:1); POST → только `backend`; POST на read-only → 403; репликация `state=streaming` + запись в реплику → «read-only transaction»; k6 402 тыс. запросов, 0 ошибок, p95 60 мс; Prometheus 5/5 targets up; сценарий отказа без ошибок.
+- **Принятое решение:** primary-replica (streaming) для `/mirror` + read-only БД-роль `reader` для основных read-инстансов — два разных механизма «только чтение» (роль на primary и физический standby).
+- **Исправленные баги (запуск/отладка):** (1) миграция `011` дублировала RLS-политики `010` и роняла цепочку миграций → сделана идемпотентной, иначе `012/013/014` не применялись; (2) в реплике `grep primary_conninfo` находил закомментированную строку → `^primary_conninfo`; (3) compose-`entrypoint` не наследует CMD → `exec docker-entrypoint.sh postgres` явно; (4) `max_fails=1` выбивал read-only из ротации → `max_fails=3`; (5) `go run` хрупок → бинарник; (6) пул БД 10 → `POOL_MAX_CONNS=40` на write-инстансах; (7) Grafana под-subpath redirect-петля → `proxy_pass` без среза.
+
+

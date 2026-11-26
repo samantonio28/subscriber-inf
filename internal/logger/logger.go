@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -38,7 +39,9 @@ func NewLogrusLogger(accessLogPath string) (*LogrusLogger, error) {
 		return nil, err
 	}
 
-	Log.log.SetOutput(accessFile)
+	// Пишем и в файл, и в stdout: stdout забирает Docker/Promtail → Loki,
+	// поэтому логи видны со всех экземпляров приложения.
+	Log.log.SetOutput(io.MultiWriter(accessFile, os.Stdout))
 	Log.log.SetLevel(logrus.TraceLevel)
 
 	return &Log, nil

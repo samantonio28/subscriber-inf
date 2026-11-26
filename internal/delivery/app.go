@@ -115,10 +115,24 @@ func App() {
 	serverV2 := NewServerV2(serverImpl, serviceRepo)
 	rV2 := apiv2.Handler(serverV2)
 
+	// Имя экземпляра для метрик (label instance): backend, backend-read1, mirror-backend и т.д.
+	instance := os.Getenv("INSTANCE")
+	if instance == "" {
+		instance = "backend"
+	}
+
+	// READ_ONLY=true — экземпляр только для чтения: запись блокируется (403).
+	readOnly := os.Getenv("READ_ONLY") == "true"
+
 	rWithMiddleware := mux.NewRouter()
 	rWithMiddleware.Use(CORSMiddleware())
 	rWithMiddleware.Use(AuthMiddleware(userRepo))
 	rWithMiddleware.Use(AccessLogMiddleware(logger))
+	if readOnly {
+		rWithMiddleware.Use(ReadOnlyMiddleware())
+	}
+	// MetricsMiddleware регистрируется последним (наружным), чтобы считать все запросы.
+	rWithMiddleware.Use(MetricsMiddleware(instance))
 
 	// /health — liveness: процесс жив (не проверяет зависимости).
 	rWithMiddleware.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -148,6 +162,9 @@ func App() {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ready"}`))
 	}).Methods(http.MethodGet)
+
+	// /metrics — метрики Prometheus (скрейпятся Prometheus со всех экземпляров).
+	rWithMiddleware.Handle("/metrics", MetricsHandler()).Methods(http.MethodGet)
 
 	rWithMiddleware.PathPrefix("/api/v2").Handler(rV2)
 	rWithMiddleware.PathPrefix("/api/v1").Handler(http.StripPrefix("/api/v1", r))

@@ -1,7 +1,19 @@
+# WebLab #5 — WEB SERVER v2.0 (стенд)
+# Балансировка чтения 2:1:1, запись на один узел, /mirror за репликой БД,
+# кэш+gzip, подмена Server, /monitoring (Prometheus+Loki+Grafana).
+#
+# Единая точка входа — nginx (openresty) на :9090. Всё остальное внутреннее.
+
+x-backend-build: &backend-build
+  image: subscriber-inf-backend
+  build:
+    context: .
+    dockerfile: Dockerfile
+
 services:
-  # Единая точка входа — web-сервер nginx. Все остальные сервисы внутренние.
+  # ---------- Единая точка входа ----------
   nginx:
-    image: nginx:1.27-alpine
+    image: openresty/openresty:alpine
     ports:
       - "9090:80"
     volumes:
@@ -12,16 +24,21 @@ services:
       - ./openapi.yaml:/srv/swagger/openapi.yaml:ro
       - ./WebLab1.md:/srv/documentation/WebLab1.md:ro
       - ./deploy/.htpasswd:/etc/nginx/.htpasswd:ro
+      - nginx_cache:/var/cache/nginx
     depends_on:
       - backend
+      - backend-read1
+      - backend-read2
+      - mirror-backend
+      - mirror-backend-read
       - swagger-ui
       - adminer
+      - grafana
     restart: unless-stopped
 
+  # ---------- Основной бэкенд на запись (primary БД, вес 2) ----------
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    <<: *backend-build
     environment:
       REDIS_URL: "redis:6379"
       DB_TYPE: "postgres"
@@ -31,6 +48,8 @@ services:
       DB_PASSWORD: "${POSTGRES_PASSWORD:-secret}"
       DB_NAME: "dev"
       PORT: "8080"
+      INSTANCE: "backend"
+      POOL_MAX_CONNS: "40"
     depends_on:
       postgres:
         condition: service_healthy
@@ -38,8 +57,93 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ---------- Read-only инстансы (роль reader, только SELECT) ----------
+  backend-read1:
+    <<: *backend-build
+    environment:
+      REDIS_URL: "redis:6379"
+      DB_TYPE: "postgres"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_USER: "reader"
+      DB_PASSWORD: "readpass"
+      DB_NAME: "dev"
+      PORT: "8081"
+      INSTANCE: "backend-read1"
+      READ_ONLY: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backend-read2:
+    <<: *backend-build
+    environment:
+      REDIS_URL: "redis:6379"
+      DB_TYPE: "postgres"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_USER: "reader"
+      DB_PASSWORD: "readpass"
+      DB_NAME: "dev"
+      PORT: "8082"
+      INSTANCE: "backend-read2"
+      READ_ONLY: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------- /mirror: отдельная версия приложения ----------
+  # Запись → postgres (primary); чтение балансируется на mirror-backend-read (реплика).
+  mirror-backend:
+    <<: *backend-build
+    environment:
+      REDIS_URL: "redis:6379"
+      DB_TYPE: "postgres"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_USER: "postgres"
+      DB_PASSWORD: "${POSTGRES_PASSWORD:-secret}"
+      DB_NAME: "dev"
+      PORT: "8080"
+      INSTANCE: "mirror-backend"
+      POOL_MAX_CONNS: "40"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mirror-backend-read:
+    <<: *backend-build
+    environment:
+      REDIS_URL: "redis:6379"
+      DB_TYPE: "postgres"
+      DB_HOST: "postgres-replica"
+      DB_PORT: "5432"
+      DB_USER: "postgres"
+      DB_PASSWORD: "${POSTGRES_PASSWORD:-secret}"
+      DB_NAME: "dev"
+      PORT: "8080"
+      INSTANCE: "mirror-backend-read"
+      READ_ONLY: "true"
+    depends_on:
+      postgres-replica:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------- БД: primary + standby-реплика (primary-replica) ----------
   postgres:
     image: postgres:15-alpine
+    command: ["postgres", "-c", "max_connections=200"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-secret}"
@@ -54,6 +158,30 @@ services:
       retries: 10
     restart: unless-stopped
 
+  postgres-replica:
+    image: postgres:15-alpine
+    entrypoint: ["/bin/sh", "/opt/replica-entrypoint.sh"]
+    command: ["postgres", "-c", "max_connections=200"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-secret}"
+      REPLICATION_PASSWORD: "${POSTGRES_PASSWORD:-secret}"
+      PRIMARY_HOST: postgres
+    volumes:
+      - replica_data:/var/lib/postgresql/data
+      - ./deploy/postgres-replica/entrypoint.sh:/opt/replica-entrypoint.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+
+  # ---------- Redis (общий кэш) ----------
   redis:
     image: redis:7-alpine
     healthcheck:
@@ -63,6 +191,7 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ---------- Swagger UI ----------
   swagger-ui:
     image: swaggerapi/swagger-ui
     environment:
@@ -71,11 +200,60 @@ services:
       - ./openapi.yaml:/openapi.yaml:ro
     restart: unless-stopped
 
+  # ---------- Админка БД (за /admin, basic-auth) ----------
   adminer:
     image: adminer
     environment:
       ADMINER_DEFAULT_SERVER: postgres
     restart: unless-stopped
 
+  # ---------- Наблюдаемость (/monitoring) ----------
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.1.1
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./deploy/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki_data:/loki
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    volumes:
+      - ./deploy/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SERVER_ROOT_URL: /monitoring/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
 volumes:
   pg_data:
+  replica_data:
+  nginx_cache:
+  prometheus_data:
+  loki_data:
+  grafana_data:
