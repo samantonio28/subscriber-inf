@@ -210,14 +210,27 @@ jobs:
         image: redis:7-alpine
         ports:
           - 6379:6379
+      # ЛР6: бэкенд трейсинга — Jaeger all-in-one (OTLP :4318, UI/API :16686).
+      jaeger:
+        image: jaegertracing/all-in-one:1.62.0
+        env:
+          COLLECTOR_OTLP_ENABLED: "true"
+        ports:
+          - 16686:16686
       app:
         image: ghcr.io/${{ github.repository }}/service:latest
         env:
           CONFIG_PATH: configs/postgres_ci.yaml
           REDIS_URL: redis:6379
+          # ЛР6: трассировка включена — данные трейсов доступны в CI (требование п.1).
+          TRACING_ENABLED: "true"
+          OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+          OTEL_SERVICE_NAME: subscriber-inf
     env:
       # E2E-тест бьёт по развёрнутому сервису (имя сервиса в docker-сети).
       BASE_URL: http://app:8080
+      # ЛР6: API Jaeger для проверки доступности трейсов после прогона.
+      JAEGER_QUERY_URL: http://jaeger:16686
     steps:
       - uses: actions/checkout@v4
       - name: "Ожидание схемы БД и готовности сервиса"
@@ -239,6 +252,20 @@ jobs:
         run: |
           echo "==> e2e: go test -v -p 1 -tags e2e ./test/e2e (BDD-сценарии гоняются в ступени e2e-bdd)"
           go test -p 1 -tags e2e -v ./test/e2e
+      # ЛР6 п.1 (требование): данные трейсинга доступны при запуске тестов из CI/CD —
+      # после E2E-прогона запрашиваем у Jaeger API трейсы сервиса и проверяем, что
+      # спаны HTTP-запросов дошли до бэкенда трейсинга.
+      - name: "Проверка трейсов в Jaeger (данные трейсинга доступны из CI/CD)"
+        run: |
+          sleep 6   # ждём flush батча спанов (batch timeout 5 c)
+          resp=$(curl -s "$JAEGER_QUERY_URL/api/traces?service=subscriber-inf&limit=5")
+          echo "$resp" | head -c 300; echo
+          count=$(echo "$resp" | grep -o '"traceID"' | wc -l)
+          echo "==> найдено трейсов: $count"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::Трейсы не найдены в Jaeger — трассировка не работает в CI"
+            exit 1
+          fi
       - name: "Публикация результатов (allure)"
         if: always()
         uses: actions/upload-artifact@v4
@@ -278,14 +305,25 @@ jobs:
         image: redis:7-alpine
         ports:
           - 6379:6379
+      # ЛР6: Jaeger для трассировки BDD-прогона.
+      jaeger:
+        image: jaegertracing/all-in-one:1.62.0
+        env:
+          COLLECTOR_OTLP_ENABLED: "true"
+        ports:
+          - 16686:16686
       app:
         image: ghcr.io/${{ github.repository }}/service:latest
         env:
           CONFIG_PATH: configs/postgres_ci.yaml
           REDIS_URL: redis:6379
+          TRACING_ENABLED: "true"
+          OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+          OTEL_SERVICE_NAME: subscriber-inf
     env:
       # BDD-тесты бьют по развёрнутому сервису.
       BASE_URL: http://app:8080
+      JAEGER_QUERY_URL: http://jaeger:16686
       # Требование ЛР №5 (п.5a): пароль технического пользователя НЕ хранится
       # в репозитории — приходит из GitHub Actions secret.
       E2E_TECH_USER_PASSWORD: ${{ secrets.E2E_TECH_USER_PASSWORD }}
@@ -320,6 +358,16 @@ jobs:
           # относительный путь: в container-джобах ${{ github.workspace }} даёт путь
           # хоста (/home/runner/work/...), которого внутри контейнера не существует.
           go test -p 1 -tags e2e -v ./test/e2e/bdd/...
+      - name: "Проверка трейсов в Jaeger (данные трейсинга доступны из CI/CD)"
+        run: |
+          sleep 6
+          resp=$(curl -s "$JAEGER_QUERY_URL/api/traces?service=subscriber-inf&limit=5")
+          count=$(echo "$resp" | grep -o '"traceID"' | wc -l)
+          echo "==> найдено трейсов: $count"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::Трейсы не найдены в Jaeger — трассировка не работает в CI"
+            exit 1
+          fi
       - name: "Конвертация Cucumber JSON в allure-results"
         if: always()
         run: |

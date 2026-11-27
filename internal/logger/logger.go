@@ -18,16 +18,37 @@ type Logger interface {
 }
 
 type LogrusLogger struct {
-	log *logrus.Logger
+	log      *logrus.Logger
+	extended bool
 }
 
 type Fields *logrus.Fields
 type Entry *logrus.Entry
 
-func NewLogrusLogger(accessLogPath string) (*LogrusLogger, error) {
+// ExtendedMode читает env-флаг расширенного логирования (ЛР №6):
+// LOG_MODE=extended → Debug-уровень и расширенные поля access-лога.
+// По умолчанию — стандартное логирование (Info).
+func ExtendedMode() bool {
+	return os.Getenv("LOG_MODE") == "extended"
+}
+
+// NewLogrusLoggerMode создаёт логгер в одном из двух режимов (ЛР №6):
+//   - extended=false (по умолчанию): уровень Info, компактная запись запроса;
+//   - extended=true: уровень Debug (в лог попадают Debug-сообщения usecase-слоя)
+//     и расширенный access-лог (query-параметры, размеры тел).
+//
+// Переключение через LOG_MODE=extended позволяет измерять накладные расходы
+// логирования в нагрузочных прогонах.
+func NewLogrusLoggerMode(accessLogPath string, extended bool) (*LogrusLogger, error) {
 	var Log LogrusLogger
 	Log.log = logrus.New()
 	Log.log.SetFormatter(&logrus.JSONFormatter{})
+
+	if extended {
+		Log.log.SetLevel(logrus.DebugLevel)
+	} else {
+		Log.log.SetLevel(logrus.InfoLevel)
+	}
 
 	if err := os.MkdirAll(filepath.Dir(accessLogPath), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
@@ -39,9 +60,14 @@ func NewLogrusLogger(accessLogPath string) (*LogrusLogger, error) {
 	}
 
 	Log.log.SetOutput(accessFile)
-	Log.log.SetLevel(logrus.TraceLevel)
+	Log.extended = extended
 
 	return &Log, nil
+}
+
+// NewLogrusLogger — прежний конструктор (стандартное логирование).
+func NewLogrusLogger(accessLogPath string) (*LogrusLogger, error) {
+	return NewLogrusLoggerMode(accessLogPath, false)
 }
 
 func (l *LogrusLogger) WithFields(fields map[string]any) Entry {

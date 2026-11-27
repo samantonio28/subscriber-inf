@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/samantonio28/subscriber-inf/internal/logger"
 	"github.com/samantonio28/subscriber-inf/internal/redis"
+	"github.com/samantonio28/subscriber-inf/internal/tracing"
 	"github.com/samantonio28/subscriber-inf/pkg/config"
 )
 
@@ -50,11 +51,24 @@ func App() {
 
 	log.Println("Successfully connected to PostgreSQL!")
 
-	lg, err := logger.NewLogrusLogger("logs/access.log")
+	lg, err := logger.NewLogrusLoggerMode("logs/access.log", logger.ExtendedMode())
 	if err != nil {
 		fmt.Printf("Failed to initialize logger: %v\n", err)
 		return
 	}
+
+	// ЛР №6: трассировка OpenTelemetry. При TRACING_ENABLED=false ставится
+	// no-op провайдер (спаны не создаются, накладные расходы нулевые).
+	shutdownTracing, err := tracing.Setup(context.Background(), tracing.TracingEnabled())
+	if err != nil {
+		log.Printf("tracing setup failed: %v", err)
+	}
+	defer func() {
+		// Гарантированный flush спанов при остановке сервиса.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = shutdownTracing(ctx)
+	}()
 
 	handler, err := BuildHandler(pool, redisClient, lg)
 	if err != nil {

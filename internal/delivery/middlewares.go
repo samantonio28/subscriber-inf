@@ -8,10 +8,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/samantonio28/subscriber-inf/internal/domain"
-	"github.com/samantonio28/subscriber-inf/internal/logger"
+	loggerpkg "github.com/samantonio28/subscriber-inf/internal/logger"
 )
 
-func AccessLogMiddleware(logger logger.Logger) mux.MiddlewareFunc {
+func AccessLogMiddleware(logger loggerpkg.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -23,14 +23,23 @@ func AccessLogMiddleware(logger logger.Logger) mux.MiddlewareFunc {
 
 			next.ServeHTTP(w, r)
 
-			logger.WithFields(map[string]any{
+			fields := map[string]any{
 				"method":      r.Method,
 				"path":        r.URL.Path,
 				"remote_addr": r.RemoteAddr,
 				"user_agent":  r.UserAgent(),
 				"request_id":  requestID,
 				"duration":    time.Since(start).String(),
-			}).Logger.Info("request completed")
+			}
+			// ЛР №6: расширенный режим логирования (LOG_MODE=extended) добавляет
+			// больше полей в каждую запись access-лога — измеряем накладные расходы.
+			if loggerpkg.ExtendedMode() {
+				fields["query"] = r.URL.RawQuery
+				fields["content_length"] = r.ContentLength
+				fields["proto"] = r.Proto
+				fields["host"] = r.Host
+			}
+			logger.WithFields(fields).Logger.Info("request completed")
 		})
 	}
 }

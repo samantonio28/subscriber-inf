@@ -74,6 +74,8 @@ func BuildHandler(pool *pgxpool.Pool, redisClient *redis.Client, lg *logger.Logr
 	r := api.Handler(serverImpl)
 
 	rWithMiddleware := mux.NewRouter()
+	// ЛР №6: спан OpenTelemetry на каждый запрос (no-op, если TRACING_ENABLED=false).
+	rWithMiddleware.Use(TracingMiddleware())
 	rWithMiddleware.Use(CORSMiddleware())
 	rWithMiddleware.Use(AuthMiddleware(userRepo))
 	rWithMiddleware.Use(AccessLogMiddleware(lg))
